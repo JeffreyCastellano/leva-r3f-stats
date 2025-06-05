@@ -1,6 +1,6 @@
 {
   "name": "leva-r3f-stats",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "type": "module",
   "description": "A small plugin to display React Three Fiber stats in Leva",
   "author": "Jeffrey Castellano",
