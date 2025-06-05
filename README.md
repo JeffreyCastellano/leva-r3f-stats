@@ -120,7 +120,7 @@ useStatsPanel({
 ### Normal Mode
 Shows detailed statistics in a grid layout with labels and min/max values.
 
-![Normal Stats Mode](path/to/normal-mode-image.png)
+![Normal Stats Mode](examples/expanded.jpg)
 
 ```jsx
 useStatsPanel({ compact: false });
@@ -129,7 +129,7 @@ useStatsPanel({ compact: false });
 ### Compact Mode
 Shows essential metrics in a single line for minimal UI footprint.
 
-![Compact Stats Mode](path/to/compact-mode-image.png)
+![Compact Stats Mode](examples/compact.jpg)
 
 ```jsx
 useStatsPanel({ compact: true });
