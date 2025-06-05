@@ -15,6 +15,7 @@ interface StoryArgs {
   vsync: boolean;
   meshCount: number;
   meshType: 'box' | 'sphere' | 'cone';
+  order: number;
 }
 
 function RotatingMesh({ position, type }: { position: [number, number, number], type: string }) {
@@ -119,6 +120,10 @@ const meta: Meta<StoryArgs> = {
       control: { type: 'radio' },
       options: ['box', 'sphere', 'cone'],
       description: 'Type of mesh to render'
+    },
+    order: {
+      control: { type: 'range', min: -10, max: 10, step: 1 },
+      description: 'Display order in Leva panel (lower numbers appear first)'
     }
   }
 };
@@ -126,7 +131,7 @@ const meta: Meta<StoryArgs> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const CompactExtended: Story = {
+export const Default: StoryObj<StoryArgs> = {
   args: {
     updateInterval: 100,
     targetFramerate: null,
@@ -134,8 +139,8 @@ export const CompactExtended: Story = {
     defaultColor: '#999999',
     showTriangles: true,
     vsync: true,
-    meshCount: 20,
-    meshType: 'box'
-  },
-  render: (args) => <StoryComponent {...args} />
+    meshCount: 10,
+    meshType: 'box',
+    order: -1
+  }
 };

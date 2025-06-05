@@ -12,6 +12,7 @@ interface StoryArgs {
   defaultColor: string;
   showMinMax: boolean;
   vsync: boolean;
+  order: number;
 }
 
 function Scene({ args }: { args: StoryArgs }) {
@@ -77,6 +78,10 @@ const meta: Meta<StoryArgs> = {
     vsync: {
       control: 'boolean',
       description: 'Enable VSync detection'
+    },
+    order: {
+      control: { type: 'range', min: -10, max: 10, step: 1 },
+      description: 'Display order in Leva panel (lower numbers appear first)'
     }
   }
 };
@@ -84,14 +89,15 @@ const meta: Meta<StoryArgs> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Default: StoryObj<StoryArgs> = {
   args: {
     updateInterval: 100,
     targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
     showMinMax: true,
-    vsync: true
+    vsync: true,
+    order: -1
   },
   render: (args) => <StoryComponent {...args} />
 };

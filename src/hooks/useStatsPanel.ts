@@ -38,10 +38,11 @@ export function useStatsPanel(options: StatsOptions = {}) {
   // Force unique control name to prevent caching
   const controlKey = useRef(`Performance_${Math.random().toString(36).substr(2, 9)}`);
 
-  // Register the Leva control with unique key
+  // Register the Leva control with unique key and order (defaults to -1 for top placement)
+  const controlOptions = options.order !== undefined ? { order: options.order } : { order: -1 };
   useControls({
     [controlKey.current]: stats(options)
-  }, []);
+  }, controlOptions, []);
 
   // Stats references
   const vsyncDetectorRef = useRef(new VSyncDetector(options?.vsync !== false));

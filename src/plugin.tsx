@@ -18,6 +18,7 @@ export function stats(options: StatsOptions = {}): ReturnType<typeof statsPlugin
     trackCompute: false, // Enable WebGPU compute tracking
     showTriangles: false, // Show triangle count
     vsync: true, // Enable vsync detection
+    order: -1, // Appear at top by default
     ...options
   });
 }

@@ -21,7 +21,7 @@ A small leva plugin to display @react-three/fiber stats
 - **Custom Performance Thresholds** - Set your own warning and critical levels
 - **High Refresh Rate Support** - Optimized for gaming monitors (144Hz, 240Hz, etc.)
 
-### 📈 Advanced Statistics
+### 📈 Extended Statistics
 - **Min/Max Tracking** - Rolling window statistics with configurable reset intervals
 - **Smoothed Values** - Exponential moving averages for stable readings
 - **Outlier Filtering** - Remove spikes for accurate performance assessment
@@ -110,6 +110,8 @@ useStatsPanel({
   showTriangles: false,
   // Enable VSync detection (default: true)
   vsync: true,
+  // Control display order in Leva panel (default: -1, appears at top)
+  order: 1,
 });
 ```
 
@@ -140,7 +142,7 @@ The panel automatically color-codes metrics based on performance:
 - 🟡 Yellow: Warning (FPS 50-80% of target)
 - 🔴 Red: Critical (FPS < 50% of target)
 
-## Advanced Usage
+## Extended Usage
 
 ### Custom Target Framerate
 ```jsx
@@ -167,6 +169,23 @@ useStatsPanel({
   showColors: false,
   defaultColor: '#00ff00'
 });
+```
+
+### Control Display Order
+```jsx
+// Stats panel appears at top by default (order: -1)
+useStatsPanel(); // Appears first
+
+// Set custom order to control position in Leva panel  
+useStatsPanel({
+  order: 5  // Lower numbers appear first, higher numbers appear later
+});
+
+// Use with other controls
+const controls = useControls({
+  // This will appear after stats since stats defaults to -1
+  myControl: { value: 0 }
+}, { order: 0 });
 ```
 
 ### Performance Monitoring in Production
@@ -237,7 +256,7 @@ The library uses a sophisticated approach for accurate FPS measurement:
 - Smoothed with EMA for stable readings
 
 ### VSync Detection
-Advanced algorithm for detecting display refresh rate:
+ Algorithm for detecting display refresh rate via stats-gl and others:
 
 - Frame Time Analysis: Collects frame time samples
 - Statistical Analysis: Calculates mean and standard deviation
@@ -251,13 +270,13 @@ Advanced algorithm for detecting display refresh rate:
 
 ## Browser Support
 
-| Browser | Basic Support | Memory Tracking | Notes |
-|---------|---------------|----------------|-------|
-| Chrome  | ✅            | ✅             | Full support |
-| Edge    | ✅            | ✅             | Full support |
-| Firefox | ✅            | ❌             | No memory API |
-| Safari  | ✅            | ❌             | No memory API |
-| Opera   | ✅            | ✅             | Full support |
+| Browser | Basic Support | Memory Tracking | GPU Tracking | Notes |
+|---------|---------------|----------------|--------------|-------|
+| Chrome  | ✅            | ✅             | ✅           | Full support |
+| Edge    | ✅            | ✅             | ✅           | Full support |
+| Firefox | ✅            | ❌             | ⚠️           | No mem. API, limited GPU |
+| Safari  | ✅            | ❌             | ⚠️           | No mem. API, limited GPU |
+| Opera   | ✅            | ✅             | ✅           | Full support |
 
 ## WebGPU Support
 Experimental support for WebGPU is included but not fully tested. Enable with `trackCompute: true`.

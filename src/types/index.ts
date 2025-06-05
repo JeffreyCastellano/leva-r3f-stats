@@ -20,6 +20,7 @@ export interface StatsData {
     trackCompute?: boolean;
     showTriangles?: boolean;
     vsync?: boolean;
+    order?: number;
   }
   
   export interface MinMaxData {
