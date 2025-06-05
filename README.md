@@ -332,10 +332,10 @@ const options: StatsOptions = {
 ```
 
 ## Examples
-- [Basic Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/basic) - Simple scene with stats panel.
-- [Stress Test Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/stress) - Heavy scene to test performance monitoring.
-- [Custom Styling Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/styling) - Shows how to customize colors and appearance.
-- [Production Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/production) - Optimized settings for production use.
+- [Basic Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/basic--default) - Simple scene with stats panel.
+- [Stress Test Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/stress-test--default) - Heavy scene to test performance monitoring.
+- [Custom Styling Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/styling--custom-colors) - Shows how to customize colors and appearance.
+- [Production Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/production--optimized) - Optimized settings for production use.
 
 ## Development
 
