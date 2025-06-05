@@ -85,14 +85,15 @@ export function useStatsPanel(options: StatsOptions = {}) {
     frameTimestamps: [] as number[]
   });
 
-  // For tracking render info
+  // For tracking render info - handle both WebGL and WebGPU
   const renderInfoRef = useRef({
     triangles: 0,
-    drawCalls: 0
+    drawCalls: 0,
+    lastTriangles: 0,
+    lastDrawCalls: 0,
+    lastComputeCalls: 0,
+    computeTime: 0
   });
-
-  // Track if we've started rendering
-  const hasStartedRendering = useRef(false);
 
   // Mount flag
   useEffect(() => {
@@ -202,9 +203,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     const stats = statsRef.current;
     const currentTime = performance.now();
 
-    // Mark that we've started rendering
-    hasStartedRendering.current = true;
-
     // Track frame timestamps for accurate FPS calculation
     stats.frameTimestamps.push(currentTime);
 
@@ -226,56 +224,88 @@ export function useStatsPanel(options: StatsOptions = {}) {
       stats.vsync = null;
     }
 
-    // Capture current render info - SIMPLE AND DIRECT
-    if (gl.info && gl.info.render) {
-      renderInfoRef.current.triangles = gl.info.render.triangles || 0;
-      renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
-    }
-
     stats.prevTime = currentTime;
   });
 
-  // WebGPU timestamp resolution - only if we're actually rendering
+  // Use addAfterEffect to capture render info AFTER the frame
   useEffect(() => {
-    if (!webGPUState.current.isWebGPU || !webGPUState.current.hasTimestampQuery) {
-      return;
-    }
-
-    let intervalId: NodeJS.Timeout;
-    const renderer = get().gl;
-
-    // Wait a bit before starting to resolve timestamps
-    const timeoutId = setTimeout(() => {
-      const resolveTimestamps = async () => {
-        // Only resolve if we've started rendering
-        if (hasStartedRendering.current && (renderer as any).resolveTimestampsAsync) {
-          try {
-            // Check if there are timestamps to resolve
-            const info = (renderer as any).info;
-            if (info && info.render && info.render.timestamp !== undefined) {
-              await (renderer as any).resolveTimestampsAsync(0); // RENDER
-            }
-            
-            if (options?.trackCompute && info && info.compute && info.compute.calls > 0) {
-              await (renderer as any).resolveTimestampsAsync(1); // COMPUTE
-            }
-          } catch (e) {
-            // Silent error handling - timestamps may not be available yet
+    if (!gl) return;
+    
+    const unsubscribe = addAfterEffect(() => {
+      if (gl.info && gl.info.render) {
+        const currentTriangles = gl.info.render.triangles || 0;
+        const currentDrawCalls = gl.info.render.calls || 0;
+        
+        if (webGPUState.current.isWebGPU) {
+          // WebGPU: Calculate per-frame deltas
+          renderInfoRef.current.triangles = currentTriangles - renderInfoRef.current.lastTriangles;
+          renderInfoRef.current.drawCalls = currentDrawCalls - renderInfoRef.current.lastDrawCalls;
+          
+          // Update last values for next frame
+          renderInfoRef.current.lastTriangles = currentTriangles;
+          renderInfoRef.current.lastDrawCalls = currentDrawCalls;
+          
+          // Handle wraparound or reset
+          if (renderInfoRef.current.triangles < 0) {
+            renderInfoRef.current.triangles = currentTriangles;
+            renderInfoRef.current.lastTriangles = 0;
           }
+          if (renderInfoRef.current.drawCalls < 0) {
+            renderInfoRef.current.drawCalls = currentDrawCalls;
+            renderInfoRef.current.lastDrawCalls = 0;
+          }
+        } else {
+          // WebGL: Use values directly (they reset each frame)
+          renderInfoRef.current.triangles = currentTriangles;
+          renderInfoRef.current.drawCalls = currentDrawCalls;
         }
-      };
-
-      // Resolve periodically
-      intervalId = setInterval(resolveTimestamps, 100);
-    }, 1000); // Wait 1 second before starting
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (intervalId) {
-        clearInterval(intervalId);
       }
-    };
-  }, [get, options?.trackCompute, webGPUState.current.isWebGPU, webGPUState.current.hasTimestampQuery]);
+
+      // Handle WebGPU timestamp resolution and compute tracking
+      if (webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
+        const renderer = gl;
+        
+        // Try to resolve timestamps
+        if ((renderer as any).resolveTimestampsAsync) {
+          // Check if we have new compute calls
+          if (options?.trackCompute && (renderer as any).info && (renderer as any).info.compute) {
+            const computeInfo = (renderer as any).info.compute;
+            const currentComputeCalls = computeInfo.calls || 0;
+            
+            // Only resolve if we have new compute calls
+            if (currentComputeCalls > renderInfoRef.current.lastComputeCalls) {
+              renderInfoRef.current.lastComputeCalls = currentComputeCalls;
+              
+              // Resolve and read timestamp
+              Promise.resolve().then(async () => {
+                try {
+                  await (renderer as any).resolveTimestampsAsync(1); // COMPUTE
+                  
+                  // Read the timestamp after resolution
+                  if (computeInfo.timestamp && computeInfo.timestamp > 0) {
+                    renderInfoRef.current.computeTime = computeInfo.timestamp;
+                  }
+                } catch (e) {
+                  // Silent error handling
+                }
+              });
+            }
+          }
+          
+          // Always try to resolve render timestamps
+          Promise.resolve().then(async () => {
+            try {
+              await (renderer as any).resolveTimestampsAsync(0); // RENDER
+            } catch (e) {
+              // Silent error handling
+            }
+          });
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [gl, options?.trackCompute]);
 
   // Update stats at interval
   useEffect(() => {
@@ -324,29 +354,16 @@ export function useStatsPanel(options: StatsOptions = {}) {
         stats.gpu = stats.gpuEMA.update(gpuTime);
       }
 
-      // WebGPU compute tracking
-      if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
-        try {
-          const renderer = get().gl;
-          
-          if ((renderer as any).info && (renderer as any).info.compute) {
-            const computeInfo = (renderer as any).info.compute;
-            
-            // Only update if we have actual compute time
-            if (computeInfo.frameCalls > 0 && typeof computeInfo.timestamp === 'number' && computeInfo.timestamp > 0) {
-              stats.compute = stats.computeEMA.update(computeInfo.timestamp);
-              
-              if (stats.compute > 0) {
-                globalMinMaxTrackers.compute.update(stats.compute);
-              }
-            }
-          }
-        } catch (error) {
-          // Silent error handling
+      // Use stored compute time
+      if (options?.trackCompute && webGPUState.current.isWebGPU && renderInfo.computeTime > 0) {
+        stats.compute = stats.computeEMA.update(renderInfo.computeTime);
+        
+        if (stats.compute > 0) {
+          globalMinMaxTrackers.compute.update(stats.compute);
         }
       }
 
-      // Use the actual render values directly - KEEP IT SIMPLE
+      // Use the calculated render values
       stats.triangles = renderInfo.triangles;
       stats.drawCalls = renderInfo.drawCalls;
 
