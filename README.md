@@ -412,22 +412,12 @@ leva-r3f-stats/
 - Ensure showColors is set to true (default)
 - Check if defaultColor is overriding the dynamic colors
 
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## Roadmap
 
 - [ ] Direct GPU timing measurement
 - [ ] Network request monitoring
-- [ ] Custom metric plugins
-- [ ] Historical data export
-- [ ] Performance recording/playback
+- [ ] WASM monitoring
 - [ ] WebGPU compute tracking
-- [ ] React Native support
 
 ## License
 MIT © Jeffrey Castellano  
