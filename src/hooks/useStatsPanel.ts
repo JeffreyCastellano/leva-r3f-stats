@@ -22,6 +22,7 @@ interface ExtendedPerformance extends Performance {
 declare global {
   interface Window {
     performance: ExtendedPerformance;
+    _measuredRefreshRate?: number;
   }
 }
 
@@ -34,9 +35,12 @@ export function useStatsPanel(options: StatsOptions = {}) {
   const camera = useThree(state => state.camera);
   const get = useThree(state => state.get);
 
-  // Register the Leva control
+  // Force unique control name to prevent caching
+  const controlKey = useRef(`Performance_${Math.random().toString(36).substr(2, 9)}`);
+
+  // Register the Leva control with unique key
   useControls({
-    'Performance': stats(options)
+    [controlKey.current]: stats(options)
   }, []);
 
   // Stats references
@@ -55,9 +59,10 @@ export function useStatsPanel(options: StatsOptions = {}) {
     frames: 0,
     prevTime: performance.now(),
     lastUpdateTime: performance.now(),
+    startTime: performance.now(), // Track when we started measuring
 
-    fpsBuffer: new CircularBuffer(120),
-    frameTimeBuffer: new CircularBuffer(120),
+    fpsBuffer: new CircularBuffer(30), // Smaller buffer for faster convergence
+    frameTimeBuffer: new CircularBuffer(60),
     memoryEMA: new ExponentialMovingAverage(0.1),
     gpuEMA: new ExponentialMovingAverage(0.3),
     computeEMA: new ExponentialMovingAverage(0.3),
@@ -65,12 +70,10 @@ export function useStatsPanel(options: StatsOptions = {}) {
     frameTimestamps: [] as number[]
   });
 
-  // For tracking render info per frame
-  const frameInfoRef = useRef({
+  // For tracking render info
+  const renderInfoRef = useRef({
     triangles: 0,
-    drawCalls: 0,
-    lastTriangles: 0,
-    lastDrawCalls: 0
+    drawCalls: 0
   });
 
   // Mount flag
@@ -84,11 +87,44 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, []);
 
-  // Use R3F's frame loop to capture render info
+  // Reset stats on mount/unmount
+  useEffect(() => {
+    // Reset everything on mount
+    statsStore.update({
+      fps: 0,
+      ms: 0,
+      memory: 0,
+      gpu: 0,
+      compute: 0,
+      triangles: 0,
+      drawCalls: 0,
+      vsync: null,
+      isWebGPU: false
+    });
+
+    // Reset min/max trackers
+    Object.values(globalMinMaxTrackers).forEach(tracker => tracker.reset());
+
+    return () => {
+      // Clean up on unmount
+      statsStore.update({
+        fps: 0,
+        ms: 0,
+        memory: 0,
+        gpu: 0,
+        compute: 0,
+        triangles: 0,
+        drawCalls: 0,
+        vsync: null,
+        isWebGPU: false
+      });
+    };
+  }, []);
+
+  // Use R3F's frame loop
   useFrame((state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
-    const frameInfo = frameInfoRef.current;
 
     // Track frame timestamps for accurate FPS calculation
     stats.frameTimestamps.push(currentTime);
@@ -111,34 +147,14 @@ export function useStatsPanel(options: StatsOptions = {}) {
       stats.vsync = null;
     }
 
-    // Capture render info BEFORE the frame renders
+    // Capture current render info
     if (gl.info && gl.info.render) {
-      frameInfo.lastTriangles = gl.info.render.triangles || 0;
-      frameInfo.lastDrawCalls = gl.info.render.calls || 0;
+      renderInfoRef.current.triangles = gl.info.render.triangles || 0;
+      renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
     }
 
     stats.prevTime = currentTime;
   });
-
-  // Use addAfterEffect to capture render info AFTER the frame renders
-  useEffect(() => {
-    const unsubscribe = addAfterEffect(() => {
-      const frameInfo = frameInfoRef.current;
-
-      if (gl.info && gl.info.render) {
-        const currentTriangles = gl.info.render.triangles || 0;
-        const currentDrawCalls = gl.info.render.calls || 0;
-
-        // Calculate the delta for this frame
-        frameInfo.triangles = currentTriangles - frameInfo.lastTriangles;
-        frameInfo.drawCalls = currentDrawCalls - frameInfo.lastDrawCalls;
-      }
-
-      return false; // Don't request another frame
-    });
-
-    return unsubscribe;
-  }, [gl]);
 
   // Update stats at interval
   useEffect(() => {
@@ -147,17 +163,33 @@ export function useStatsPanel(options: StatsOptions = {}) {
     const intervalId = setInterval(() => {
       const stats = statsRef.current;
       const currentTime = performance.now();
-      const frameInfo = frameInfoRef.current;
+      const renderInfo = renderInfoRef.current;
 
-      // Calculate actual FPS from frame count in last second
-      const actualFPS = stats.frameTimestamps.length;
-      stats.fpsBuffer.push(actualFPS);
-
-      // Use smoothed FPS
-      stats.fps = Math.round(stats.fpsBuffer.average());
+      // Calculate FPS properly
+      if (stats.frameTimestamps.length > 0) {
+        const timeSpan = currentTime - stats.startTime;
+        
+        if (timeSpan < 1000) {
+          // For the first second, extrapolate based on current performance
+          const framesInPeriod = stats.frameTimestamps.length;
+          const periodInSeconds = timeSpan / 1000;
+          const extrapolatedFPS = Math.round(framesInPeriod / periodInSeconds);
+          
+          // Push the extrapolated value
+          stats.fpsBuffer.push(extrapolatedFPS);
+          stats.fps = extrapolatedFPS;
+        } else {
+          // After first second, use actual frame count
+          const actualFPS = stats.frameTimestamps.length;
+          stats.fpsBuffer.push(actualFPS);
+          stats.fps = Math.round(stats.fpsBuffer.average());
+        }
+      }
 
       // Calculate smoothed frame time
-      stats.ms = stats.frameTimeBuffer.averageWithoutOutliers(0.05); // Remove top/bottom 5%
+      if (stats.frameTimeBuffer.average() > 0) {
+        stats.ms = stats.frameTimeBuffer.averageWithoutOutliers(0.05);
+      }
 
       // Update memory
       if ((window.performance as ExtendedPerformance).memory) {
@@ -166,26 +198,34 @@ export function useStatsPanel(options: StatsOptions = {}) {
       }
 
       // Simple GPU time approximation based on frame time
-      const gpuTime = stats.ms * 0.7; // Assume GPU is using about 70% of frame time
-      stats.gpu = stats.gpuEMA.update(gpuTime);
+      if (stats.ms > 0) {
+        const gpuTime = stats.ms * 0.7;
+        stats.gpu = stats.gpuEMA.update(gpuTime);
+      }
 
-      // Use the frame info we captured
-      stats.triangles = frameInfo.triangles;
-      stats.drawCalls = frameInfo.drawCalls;
+      // Use the actual render values
+      stats.triangles = renderInfo.triangles;
+      stats.drawCalls = renderInfo.drawCalls;
 
-      // Update min/max trackers
+      // Update min/max trackers only with valid values
+      if (stats.fps > 0) {
+        globalMinMaxTrackers.fps.update(stats.fps);
+      }
+      if (stats.ms > 0) {
+        globalMinMaxTrackers.ms.update(stats.ms);
+      }
+      if (stats.memory > 0) {
+        globalMinMaxTrackers.memory.update(stats.memory);
+      }
+      if (stats.gpu > 0) {
+        globalMinMaxTrackers.gpu.update(stats.gpu);
+      }
       if (stats.triangles > 0) {
         globalMinMaxTrackers.triangles.update(stats.triangles);
       }
       if (stats.drawCalls > 0) {
         globalMinMaxTrackers.drawCalls.update(stats.drawCalls);
       }
-
-      // Update min/max trackers
-      globalMinMaxTrackers.fps.update(stats.fps);
-      globalMinMaxTrackers.ms.update(stats.ms);
-      globalMinMaxTrackers.memory.update(stats.memory);
-      globalMinMaxTrackers.gpu.update(stats.gpu);
 
       stats.lastUpdateTime = currentTime;
 

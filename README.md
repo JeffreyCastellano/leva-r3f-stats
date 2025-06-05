@@ -3,10 +3,10 @@ A small leva plugin to display @react-three/fiber stats
 
 [![npm version](https://img.shields.io/npm/v/leva-r3f-stats.svg)](https://www.npmjs.com/package/leva-r3f-stats)
 [![npm downloads](https://img.shields.io/npm/dm/leva-r3f-stats.svg)](https://www.npmjs.com/package/leva-r3f-stats)
-[![license](https://img.shields.io/npm/l/leva-r3f-stats.svg)](https://github.com/JeffCastellano/leva-r3f-stats/blob/main/LICENSE)
-[![storybook](https://img.shields.io/badge/storybook-live-ff4785.svg)](https://JeffCastellano.github.io/leva-r3f-stats)
+[![license](https://img.shields.io/npm/l/leva-r3f-stats.svg)](https://github.com/JeffreyCastellano/leva-r3f-stats/blob/main/LICENSE)
+[![storybook](https://img.shields.io/badge/storybook-live-ff4785.svg)](https://JeffreyCastellano.github.io/leva-r3f-stats)
 
-[**Live Demo**](https://JeffCastellano.github.io/leva-r3f-stats) | [**Storybook**](https://JeffCastellano.github.io/leva-r3f-stats) | [**API Documentation**](https://JeffCastellano.github.io/leva-r3f-stats/docs)
+[**Live Demo**](https://JeffreyCastellano.github.io/leva-r3f-stats) | [**Storybook**](https://JeffreyCastellano.github.io/leva-r3f-stats) | [**API Documentation**](https://JeffreyCastellano.github.io/leva-r3f-stats/docs)
 
 ## Features
 
@@ -332,16 +332,16 @@ const options: StatsOptions = {
 ```
 
 ## Examples
-- [Basic Example](https://github.com/JeffCastellano/leva-r3f-stats/examples/basic) - Simple scene with stats panel.
-- [Stress Test Example](https://github.com/JeffCastellano/leva-r3f-stats/examples/stress) - Heavy scene to test performance monitoring.
-- [Custom Styling Example](https://github.com/JeffCastellano/leva-r3f-stats/examples/styling) - Shows how to customize colors and appearance.
-- [Production Example](https://github.com/JeffCastellano/leva-r3f-stats/examples/production) - Optimized settings for production use.
+- [Basic Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/basic) - Simple scene with stats panel.
+- [Stress Test Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/stress) - Heavy scene to test performance monitoring.
+- [Custom Styling Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/styling) - Shows how to customize colors and appearance.
+- [Production Example](https://github.com/JeffreyCastellano/leva-r3f-stats/examples/production) - Optimized settings for production use.
 
 ## Development
 
 ```bash
 # Clone the repository
-git clone https://github.com/JeffCastellano/leva-r3f-stats.git
+git clone https://github.com/JeffreyCastellano/leva-r3f-stats.git
 cd leva-r3f-stats
 
 # Install dependencies
@@ -422,4 +422,4 @@ See [LICENSE](LICENSE) for more information.
 - Built on the back of Stat-Gl & Stats.js [https://github.com/RenaudRohlinger/stats-gl/]
 
 ## Support
-- 🐛 Issues: [GitHub Issues](https://github.com/JeffCastellano/leva-r3f-stats/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/JeffreyCastellano/leva-r3f-stats/issues)

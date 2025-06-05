@@ -47,12 +47,14 @@ export const StatItemCompact = styled('div', {
 export const StatLabel = styled('div', {
   fontSize: '10px',
   opacity: 0.7,
+  color: '#999999',
   marginBottom: '2px',
 });
 
 export const StatLabelCompact = styled('span', {
   fontSize: '10px',
   opacity: 0.6,
+  color: '#999999',
   fontWeight: 'normal',
   flexShrink: 0,
 });

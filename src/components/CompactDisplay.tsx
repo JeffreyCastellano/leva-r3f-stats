@@ -52,7 +52,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
         <StatItemCompact>
           <StatLabelCompact>FPS:</StatLabelCompact>
           <StatValueCompact style={{
-            color: options.showColors !== false ? getFPSColor(fps) : options.defaultColor,
+            color: options.showColors !== false ? getFPSColor(fps) : options.defaultColor || '#999999',
             minWidth: '28px',
             fontFamily: 'monospace'
           }}>
@@ -63,7 +63,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
         <StatItemCompact>
           <StatLabelCompact>MS:</StatLabelCompact>
           <StatValueCompact style={{
-            color: options.showColors !== false ? getMSColor(ms) : options.defaultColor,
+            color: options.showColors !== false ? getMSColor(ms) : options.defaultColor || '#999999',
             minWidth: '28px',
             fontFamily: 'monospace'
           }}>
@@ -74,7 +74,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
         <StatItemCompact>
           <StatLabelCompact>MEM:</StatLabelCompact>
           <StatValueCompact style={{
-            color: options.defaultColor || undefined,
+            color: options.defaultColor || '#999999',
             minWidth: '28px',
             fontFamily: 'monospace'
           }}>
@@ -85,7 +85,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
         <StatItemCompact>
           <StatLabelCompact>GPU:</StatLabelCompact>
           <StatValueCompact style={{
-            color: options.showColors !== false ? getMSColor(Number(gpu)) : options.defaultColor,
+            color: options.showColors !== false ? getMSColor(Number(gpu)) : options.defaultColor || '#999999',
             minWidth: '28px',
             fontFamily: 'monospace'
           }}>
@@ -107,7 +107,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
           <StatItemCompact>
             <StatLabelCompact>TRI:</StatLabelCompact>
             <StatValueCompact style={{
-              color: options.defaultColor || undefined,
+              color: options.defaultColor || '#999999',
               minWidth: '40px',
               fontFamily: 'monospace'
             }}>
@@ -118,7 +118,7 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
           <StatItemCompact>
             <StatLabelCompact>DRW:</StatLabelCompact>
             <StatValueCompact style={{
-              color: options.defaultColor || undefined,
+              color: options.defaultColor || '#999999',
               minWidth: '28px',
               fontFamily: 'monospace'
             }}>

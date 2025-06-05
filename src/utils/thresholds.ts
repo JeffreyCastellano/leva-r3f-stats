@@ -1,5 +1,14 @@
 import { Thresholds } from '../types';
 
+declare global {
+  interface Screen {
+    refreshRate?: number;
+  }
+  interface Window {
+    _measuredRefreshRate?: number;
+  }
+}
+
 export function getTargetFrameRate(): number {
   // Try multiple methods to detect refresh rate
 

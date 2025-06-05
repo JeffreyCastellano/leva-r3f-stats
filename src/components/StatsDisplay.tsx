@@ -27,9 +27,22 @@ export function StatsDisplay() {
     return unsubscribe;
   }, []);
 
-  // Get options from value with proper default
-  const options: StatsOptions = value || {};
-  const compact = options.compact || false;
+  // Get options from value with proper defaults
+  const options: StatsOptions = {
+    updateInterval: 100,
+    targetFramerate: null,
+    compact: false,
+    showColors: true,
+    defaultColor: '#999999',
+    showMinMax: true,
+    trackCompute: false,
+    showTriangles: false,
+    vsync: true,
+    //@ts-ignore
+    ...value // Spread value AFTER defaults to allow overrides
+  };
+
+  const compact = options.compact === true; // Ensure boolean
 
   if (compact) {
     return (
