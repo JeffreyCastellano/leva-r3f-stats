@@ -1,5 +1,5 @@
 # leva-r3f-stats
-A small leva plugin to display @react-three/fiber stats
+A small Leva plugin to display React Three Fiber stats
 
 [![npm version](https://img.shields.io/npm/v/leva-r3f-stats.svg)](https://www.npmjs.com/package/leva-r3f-stats)
 [![storybook](https://img.shields.io/badge/storybook-live-ff4785.svg)](https://JeffreyCastellano.github.io/leva-r3f-stats)
@@ -34,10 +34,10 @@ A small leva plugin to display @react-three/fiber stats
 - **Modular Metrics** - Toggle individual metric groups on/off
 
 ### ⚡ Performance Optimized
-- **Minimal Overhead** - Designed to not impact your app's performance
-- **Efficient Data Structures** - Optimized circular buffers and algorithms
+- **Minimal Overhead** - Minimizes (as much as possible) app performance impact
+- **Efficient Data Structures** - Optimized circular buffers and algos
 - **Configurable Update Rates** - Balance accuracy vs performance
-- **Smart Frame Tracking** - Accurate FPS without performance cost
+- **Smart Frame Tracking** - Attempted FPS accuracy while reducing dependencies
 
 ## Installation
 
@@ -47,6 +47,8 @@ npm install leva-r3f-stats
 yarn add leva-r3f-stats
 # or
 pnpm add leva-r3f-stats
+# or
+bun install leva-r3f-stats
 ```
 
 ## Peer Dependencies
@@ -238,7 +240,7 @@ useStatsPanel({
 ## How It Works
 
 ### FPS Calculation
-The library uses a sophisticated approach for accurate FPS measurement:
+The plugin's approach to FPS measurement:
 
 - Frame Timestamp Tracking: Records precise timestamps for each frame
 - Rolling Window: Maintains timestamps from the last second
@@ -259,12 +261,12 @@ The library uses a sophisticated approach for accurate FPS measurement:
  Algorithm for detecting display refresh rate via stats-gl and others:
 
 - Frame Time Analysis: Collects frame time samples
-- Statistical Analysis: Calculates mean and standard deviation
+- Statistical Analysis: Calculates mean + standard deviation
 - Pattern Matching: Compares against known refresh rates
 - Confidence Scoring: Provides reliability metric
 
 ### Min/Max Tracking
-- Uses circular buffers for efficient memory usage
+- Uses circular buffers for better memory usage
 - Implements rolling 5-second windows
 - Automatically resets to prevent stale data
 
@@ -278,8 +280,37 @@ The library uses a sophisticated approach for accurate FPS measurement:
 | Safari  | ✅            | ❌             | ⚠️           | No mem. API, limited GPU |
 | Opera   | ✅            | ✅             | ✅           | Full support |
 
-## WebGPU Support
-Experimental support for WebGPU is included but not fully tested. Enable with `trackCompute: true`.
+### ⚡ WebGPU Support (Experimental)
+The library includes experimental support for WebGPU compute tracking when using Three.js WebGPURenderer.
+
+#### Features
+- **Compute Pass Timing** - Monitor WebGPU compute shader execution time
+- **Detection** - Detects WebGPU renderer and required features
+- **Fallback** - Silently disables if WebGPU or timestamp-query unavailable
+- **Zero Configuration** - Just enable with `trackCompute: true`
+
+#### Requirements
+- Three.js r147+ with WebGPURenderer
+- Browser with WebGPU support (Chrome 113+)
+- GPU with timestamp-query feature support
+
+#### Display
+
+Normal Mode: Shows "Compute (ms)" as a separate metric
+Compact Mode: Shows "CPT: X.X" when compute time > 0
+
+#### Usage
+```jsx
+function Scene() {
+  // Enable compute tracking
+  useStatsPanel({ 
+    trackCompute: true,
+    showTriangles: true
+  });
+  
+  // Your WebGPU compute nodes and scene...
+}
+
 
 ## Performance Impact
 The library is designed for minimal overhead:
@@ -419,14 +450,14 @@ leva-r3f-stats/
 - [ ] WASM monitoring
 - [ ] WebGPU compute tracking
 
-## License
-MIT © Jeffrey Castellano  
-See [LICENSE](LICENSE) for more information.
-
 ## Acknowledgments
 - Built for @react-three/fiber
 - UI powered by Leva
 - Built on the back of Stat-Gl & Stats.js [https://github.com/RenaudRohlinger/stats-gl/]
+
+## License
+MIT © Jeffrey Castellano  
+See [LICENSE](LICENSE) for more information.
 
 ## Support
 - 🐛 Issues: [GitHub Issues](https://github.com/JeffreyCastellano/leva-r3f-stats/issues)

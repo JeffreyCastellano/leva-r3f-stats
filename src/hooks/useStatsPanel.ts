@@ -26,6 +26,13 @@ declare global {
   }
 }
 
+// WebGPU state tracking
+interface WebGPUState {
+  isWebGPU: boolean;
+  hasTimestampQuery: boolean;
+  warnedAboutCompute: boolean;
+}
+
 // Global flag to track if collector is mounted
 let globalCollectorMounted = false;
 
@@ -43,6 +50,13 @@ export function useStatsPanel(options: StatsOptions = {}) {
   useControls({
     [controlKey.current]: stats(options)
   }, controlOptions, []);
+
+  // WebGPU state
+  const webGPUState = useRef<WebGPUState>({
+    isWebGPU: false,
+    hasTimestampQuery: false,
+    warnedAboutCompute: false
+  });
 
   // Stats references
   const vsyncDetectorRef = useRef(new VSyncDetector(options?.vsync !== false));
@@ -87,6 +101,64 @@ export function useStatsPanel(options: StatsOptions = {}) {
       };
     }
   }, []);
+
+  // Check for WebGPU support
+  useEffect(() => {
+    async function checkWebGPU() {
+      const renderer = get().gl;
+      
+      // Reset state
+      webGPUState.current = {
+        isWebGPU: false,
+        hasTimestampQuery: false,
+        warnedAboutCompute: false
+      };
+      
+      try {
+        // Check if it's a WebGPU renderer
+        if (renderer && (renderer as any).isWebGPURenderer) {
+          webGPUState.current.isWebGPU = true;
+          
+          // Try to enable timestamp tracking
+          if ((renderer as any).backend) {
+            (renderer as any).backend.trackTimestamp = true;
+            
+            // Check for timestamp-query feature
+            if ((renderer as any).hasFeatureAsync) {
+              try {
+                webGPUState.current.hasTimestampQuery = 
+                  await (renderer as any).hasFeatureAsync('timestamp-query');
+                
+                if (options?.trackCompute && !webGPUState.current.hasTimestampQuery) {
+                  console.debug(
+                    'leva-r3f-stats: Compute tracking requested but timestamp-query not supported. ' +
+                    'Compute metrics will not be displayed.'
+                  );
+                }
+              } catch (e) {
+                // Silent fallback if hasFeatureAsync fails
+                webGPUState.current.hasTimestampQuery = false;
+              }
+            }
+          }
+          
+          statsRef.current.isWebGPU = true;
+        } else if (options?.trackCompute && !webGPUState.current.warnedAboutCompute) {
+          // Only warn once if compute tracking was requested but not available
+          console.debug(
+            'leva-r3f-stats: Compute tracking requested but WebGPU renderer not detected. ' +
+            'Compute metrics will not be displayed.'
+          );
+          webGPUState.current.warnedAboutCompute = true;
+        }
+      } catch (error) {
+        // Silent fallback on any error
+        console.debug('leva-r3f-stats: WebGPU detection failed:', error);
+      }
+    }
+    
+    checkWebGPU();
+  }, [get, options?.trackCompute]);
 
   // Reset stats on mount/unmount
   useEffect(() => {
@@ -204,6 +276,30 @@ export function useStatsPanel(options: StatsOptions = {}) {
         stats.gpu = stats.gpuEMA.update(gpuTime);
       }
 
+      // WebGPU compute tracking
+      if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
+        try {
+          const renderer = get().gl;
+          const rendererInfo = (renderer as any)?.info;
+          
+          if (rendererInfo?.compute?.timestamp !== undefined && rendererInfo.compute.timestamp !== null) {
+            const computeTime = Number(rendererInfo.compute.timestamp);
+            
+            // Validate the compute time
+            if (!isNaN(computeTime) && computeTime >= 0) {
+              stats.compute = stats.computeEMA.update(computeTime);
+              
+              if (stats.compute > 0) {
+                globalMinMaxTrackers.compute.update(stats.compute);
+              }
+            }
+          }
+        } catch (error) {
+          // Silent fallback - compute tracking continues to show 0
+          console.debug('leva-r3f-stats: Compute timestamp collection failed:', error);
+        }
+      }
+
       // Use the actual render values
       stats.triangles = renderInfo.triangles;
       stats.drawCalls = renderInfo.drawCalls;
@@ -240,12 +336,12 @@ export function useStatsPanel(options: StatsOptions = {}) {
         triangles: stats.triangles,
         drawCalls: stats.drawCalls,
         vsync: stats.vsync,
-        isWebGPU: stats.isWebGPU
+        isWebGPU: webGPUState.current.isWebGPU
       });
     }, updateInterval);
 
     return () => clearInterval(intervalId);
-  }, [options?.updateInterval, gl]);
+  }, [options?.updateInterval, options?.trackCompute, gl, get]);
 
   return null;
 }
