@@ -220,14 +220,68 @@ export function useStatsPanel(options: StatsOptions = {}) {
       stats.vsync = null;
     }
 
-    // Capture current render info
-    if (gl.info && gl.info.render) {
-      renderInfoRef.current.triangles = gl.info.render.triangles || 0;
-      renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
-    }
-
     stats.prevTime = currentTime;
   });
+
+  // Capture render info after each frame
+  useEffect(() => {
+    if (!gl.info) return;
+    
+    // Reset info at start
+    if (gl.info.reset) {
+      gl.info.reset();
+    }
+    
+    // Capture after each frame
+    const unsubscribe = addAfterEffect(() => {
+      if (gl.info && gl.info.render) {
+        renderInfoRef.current.triangles = gl.info.render.triangles || 0;
+        renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [gl]);
+
+  // Resolve WebGPU timestamps to prevent pool overflow
+  useEffect(() => {
+    if (!webGPUState.current.isWebGPU || !webGPUState.current.hasTimestampQuery) {
+      return;
+    }
+
+    const renderer = get().gl;
+    let resolveIntervalId: NodeJS.Timeout;
+
+    const resolveTimestamps = async () => {
+      try {
+        // Check if the method exists
+        if ((renderer as any).resolveTimestampsAsync) {
+          // Always resolve render timestamps when using trackTimestamp
+          await (renderer as any).resolveTimestampsAsync(0); // RENDER
+          
+          // Also resolve compute timestamps if tracking compute
+          if (options?.trackCompute) {
+            await (renderer as any).resolveTimestampsAsync(1); // COMPUTE
+          }
+        }
+      } catch (error) {
+        // Silent error handling - timestamps will accumulate but won't crash
+        console.debug('Timestamp resolution failed:', error);
+      }
+    };
+
+    // Start resolving immediately
+    resolveTimestamps();
+    
+    // Then resolve periodically
+    resolveIntervalId = setInterval(resolveTimestamps, 500); // Every 500ms
+
+    return () => {
+      if (resolveIntervalId) {
+        clearInterval(resolveIntervalId);
+      }
+    };
+  }, [get, options?.trackCompute]);
 
   // Update stats at interval
   useEffect(() => {
