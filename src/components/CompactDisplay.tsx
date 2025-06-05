@@ -100,7 +100,21 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
             </StatLabelCompact>
           </StatItemCompact>
         )}
+
+        {options.trackCompute && stats.isWebGPU && (
+          <StatItemCompact>
+            <StatLabelCompact>COMP:</StatLabelCompact>
+            <StatValueCompact style={{
+              color: options.showColors !== false ? getMSColor(stats.compute) : options.defaultColor || '#999999',
+              minWidth: '28px',
+              fontFamily: 'monospace'
+            }}>
+              {formatMS(stats.compute)}
+            </StatValueCompact>
+          </StatItemCompact>
+        )}
       </StatsContainerCompact>
+
 
       {showTriangles && (
         <StatsContainerCompact>
@@ -127,18 +141,6 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
           </StatItemCompact>
         </StatsContainerCompact>
       )}
-      {options.trackCompute && stats.isWebGPU && (
-      <StatItemCompact>
-        <StatLabelCompact>COMP:</StatLabelCompact>
-        <StatValueCompact style={{
-          color: options.defaultColor || '#999999',
-          minWidth: '28px',
-          fontFamily: 'monospace'
-        }}>
-          {formatMS(stats.compute)}
-        </StatValueCompact>
-      </StatItemCompact>
-    )}
     </StatsCompactWrapper>
   );
 }
