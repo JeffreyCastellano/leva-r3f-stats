@@ -58,6 +58,10 @@ export function useStatsPanel(options: StatsOptions = {}) {
     warnedAboutCompute: false
   });
 
+  // Direct reference to renderer info
+  const rendererInfoRef = useRef<any>(null);
+  const lastComputeTime = useRef<number>(0);
+
   // Stats references
   const vsyncDetectorRef = useRef(new VSyncDetector(options?.vsync !== false));
   const statsRef = useRef({
@@ -104,7 +108,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, []);
 
-  // Check for WebGPU support
+  // Check for WebGPU support and setup
   useEffect(() => {
     async function checkWebGPU() {
       const renderer = get().gl;
@@ -121,7 +125,10 @@ export function useStatsPanel(options: StatsOptions = {}) {
         if (renderer && (renderer as any).isWebGPURenderer) {
           webGPUState.current.isWebGPU = true;
           
-          // Try to enable timestamp tracking
+          // Store direct reference to info
+          rendererInfoRef.current = (renderer as any).info;
+          
+          // Enable timestamp tracking on backend
           if ((renderer as any).backend) {
             (renderer as any).backend.trackTimestamp = true;
             
@@ -144,17 +151,44 @@ export function useStatsPanel(options: StatsOptions = {}) {
             }
           }
           
-          // Important: Patch the WebGPU renderer like stats-gl does
-          const originalReset = (renderer as any).info.reset;
-          (renderer as any).info.reset = function() {
-            // Call the original reset
-            originalReset.call(this);
+          // Patch the info.reset method to maintain our tracking
+          if (rendererInfoRef.current) {
+            const originalReset = rendererInfoRef.current.reset;
+            let frameCount = 0;
             
-            // After reset, we may need to re-enable timestamp tracking
-            if ((renderer as any).backend) {
-              (renderer as any).backend.trackTimestamp = true;
-            }
-          };
+            rendererInfoRef.current.reset = function() {
+              // Before reset, capture the compute timestamp
+              if (options?.trackCompute && this.compute && this.compute.timestamp > 0) {
+                lastComputeTime.current = this.compute.timestamp;
+              }
+              
+              // Call original reset
+              originalReset.call(this);
+              
+              // Re-enable timestamp tracking after reset
+              if ((renderer as any).backend) {
+                (renderer as any).backend.trackTimestamp = true;
+              }
+              
+              // Periodically resolve timestamps to prevent pool overflow
+              frameCount++;
+              if (frameCount % 30 === 0 && (renderer as any).resolveTimestampsAsync) {
+                // Async resolve without blocking
+                Promise.resolve().then(async () => {
+                  try {
+                    if (rendererInfoRef.current.render.calls > 0) {
+                      await (renderer as any).resolveTimestampsAsync(0); // RENDER
+                    }
+                    if (options?.trackCompute && rendererInfoRef.current.compute.calls > 0) {
+                      await (renderer as any).resolveTimestampsAsync(1); // COMPUTE
+                    }
+                  } catch (e) {
+                    // Silent - timestamps might not be ready
+                  }
+                });
+              }
+            };
+          }
           
           statsRef.current.isWebGPU = true;
         } else if (options?.trackCompute && !webGPUState.current.warnedAboutCompute) {
@@ -293,37 +327,22 @@ export function useStatsPanel(options: StatsOptions = {}) {
       // WebGPU compute tracking
       if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
         try {
-          const renderer = get().gl;
-          
-          // Check multiple possible locations for compute timestamp
-          let computeTime = 0;
-          
-          if ((renderer as any).info && (renderer as any).info.compute) {
-            const computeInfo = (renderer as any).info.compute;
+          // Try to read from the info directly first
+          if (rendererInfoRef.current && rendererInfoRef.current.compute) {
+            const computeInfo = rendererInfoRef.current.compute;
             
-            // Try different properties
-            if (computeInfo.timestamp !== undefined && computeInfo.timestamp > 0) {
-              computeTime = computeInfo.timestamp;
-            } else if (computeInfo.time !== undefined && computeInfo.time > 0) {
-              computeTime = computeInfo.time;
-            } else if (computeInfo.frameTime !== undefined && computeInfo.frameTime > 0) {
-              computeTime = computeInfo.frameTime;
+            // Use the timestamp if available
+            if (computeInfo.timestamp > 0) {
+              lastComputeTime.current = computeInfo.timestamp;
             }
             
-            // If we still don't have a timestamp but have compute calls, approximate it
-            if (computeTime === 0 && computeInfo.frameCalls > 0) {
-              // Rough approximation: assume each compute call takes ~0.5ms
-              computeTime = computeInfo.frameCalls * 0.5;
-              console.log('Approximating compute time:', computeTime, 'ms for', computeInfo.frameCalls, 'calls');
-            }
-          }
-          
-          // Update compute stats
-          if (computeTime > 0) {
-            stats.compute = stats.computeEMA.update(computeTime);
-            
-            if (stats.compute > 0) {
-              globalMinMaxTrackers.compute.update(stats.compute);
+            // Update stats with the last known compute time
+            if (lastComputeTime.current > 0) {
+              stats.compute = stats.computeEMA.update(lastComputeTime.current);
+              
+              if (stats.compute > 0) {
+                globalMinMaxTrackers.compute.update(stats.compute);
+              }
             }
           }
         } catch (error) {
