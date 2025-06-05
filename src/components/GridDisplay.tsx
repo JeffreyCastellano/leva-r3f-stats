@@ -109,6 +109,7 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
       </StatsContainer>
 
       {options.trackCompute && stats.isWebGPU && (
+          <StatsContainer>
         <StatItem>
           <StatLabel>Compute (ms)</StatLabel>
           <StatValue style={{
@@ -122,6 +123,7 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
             )}
           </StatValue>
         </StatItem>
+          </StatsContainer>
       )}
 
       {showTriangles && (

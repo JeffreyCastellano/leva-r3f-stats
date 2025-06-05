@@ -101,7 +101,11 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
           </StatItemCompact>
         )}
 
-        {options.trackCompute && stats.isWebGPU && (
+        
+      </StatsContainerCompact>
+
+      {options.trackCompute && stats.isWebGPU && (
+        <StatsContainerCompact>
           <StatItemCompact>
             <StatLabelCompact>COMP:</StatLabelCompact>
             <StatValueCompact style={{
@@ -112,9 +116,9 @@ export function CompactDisplay({ stats, options, minMaxTrackers }: CompactDispla
               {formatMS(stats.compute)}
             </StatValueCompact>
           </StatItemCompact>
-        )}
-      </StatsContainerCompact>
+          </StatsContainerCompact>
 
+        )}
 
       {showTriangles && (
         <StatsContainerCompact>
