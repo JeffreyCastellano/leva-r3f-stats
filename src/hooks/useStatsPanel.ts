@@ -91,6 +91,9 @@ export function useStatsPanel(options: StatsOptions = {}) {
     drawCalls: 0
   });
 
+  // For tracking compute time after resolution
+  const computeTimeRef = useRef(0);
+
   // Mount flag
   useEffect(() => {
     if (!globalCollectorMounted) {
@@ -238,15 +241,27 @@ export function useStatsPanel(options: StatsOptions = {}) {
     let animationFrameId: number;
     const renderer = get().gl;
 
-    const resolveTimestamps = () => {
+    const resolveTimestamps = async () => {
       if ((renderer as any).resolveTimestampsAsync) {
-        // Resolve both timestamp pools
-        Promise.all([
-          (renderer as any).resolveTimestampsAsync(0), // RENDER
-          options?.trackCompute ? (renderer as any).resolveTimestampsAsync(1) : Promise.resolve() // COMPUTE
-        ]).catch(() => {
+        try {
+          // Resolve timestamps
+          await Promise.all([
+            (renderer as any).resolveTimestampsAsync(0), // RENDER
+            options?.trackCompute ? (renderer as any).resolveTimestampsAsync(1) : Promise.resolve() // COMPUTE
+          ]);
+          
+          // After resolution, try to read the compute timestamp
+          if (options?.trackCompute && (renderer as any).info && (renderer as any).info.compute) {
+            const computeInfo = (renderer as any).info.compute;
+            
+            // The timestamp should now be available after resolution
+            if (computeInfo.frameCalls > 0 && typeof computeInfo.timestamp === 'number') {
+              computeTimeRef.current = computeInfo.timestamp;
+            }
+          }
+        } catch (e) {
           // Silent error handling
-        });
+        }
       }
       
       // Continue resolving every frame
@@ -310,38 +325,14 @@ export function useStatsPanel(options: StatsOptions = {}) {
         stats.gpu = stats.gpuEMA.update(gpuTime);
       }
 
-      // WebGPU compute tracking
+      // WebGPU compute tracking - use the resolved timestamp
       if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
-        try {
-          const renderer = get().gl;
+        if (computeTimeRef.current > 0) {
+          stats.compute = stats.computeEMA.update(computeTimeRef.current);
           
-          // Check the info object for compute timing
-          if ((renderer as any).info && (renderer as any).info.compute) {
-            const computeInfo = (renderer as any).info.compute;
-            
-            // Log what we find to debug
-            console.debug('Compute info:', computeInfo);
-            
-            if (computeInfo.computeCount && computeInfo.computeCount > 0) {
-              // Try to get timestamp from various possible locations
-              let computeTime = 0;
-              
-              if (typeof computeInfo.timestamp === 'number') {
-                computeTime = computeInfo.timestamp;
-              } else if (typeof computeInfo.frameTime === 'number') {
-                computeTime = computeInfo.frameTime;
-              } else if (typeof computeInfo.time === 'number') {
-                computeTime = computeInfo.time;
-              }
-              
-              if (computeTime > 0) {
-                stats.compute = stats.computeEMA.update(computeTime);
-                globalMinMaxTrackers.compute.update(stats.compute);
-              }
-            }
+          if (stats.compute > 0) {
+            globalMinMaxTrackers.compute.update(stats.compute);
           }
-        } catch (error) {
-          console.debug('leva-r3f-stats: Compute tracking error:', error);
         }
       }
 
