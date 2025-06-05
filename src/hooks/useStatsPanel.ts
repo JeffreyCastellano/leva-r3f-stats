@@ -58,6 +58,9 @@ export function useStatsPanel(options: StatsOptions = {}) {
     warnedAboutCompute: false
   });
 
+  // Store direct reference to renderer info (like stats-gl does)
+  const rendererInfo = useRef<any>(null);
+
   // Stats references
   const vsyncDetectorRef = useRef(new VSyncDetector(options?.vsync !== false));
   const statsRef = useRef({
@@ -104,7 +107,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, []);
 
-  // Check for WebGPU support
+  // Check for WebGPU support and store renderer info
   useEffect(() => {
     async function checkWebGPU() {
       const renderer = get().gl;
@@ -120,6 +123,9 @@ export function useStatsPanel(options: StatsOptions = {}) {
         // Check if it's a WebGPU renderer
         if (renderer && (renderer as any).isWebGPURenderer) {
           webGPUState.current.isWebGPU = true;
+          
+          // Store direct reference to renderer info (like stats-gl)
+          rendererInfo.current = (renderer as any).info;
           
           // Try to enable timestamp tracking
           if ((renderer as any).backend) {
@@ -143,6 +149,13 @@ export function useStatsPanel(options: StatsOptions = {}) {
               }
             }
           }
+          
+          // Patch the renderer like stats-gl does
+          const originalReset = rendererInfo.current.reset;
+          rendererInfo.current.reset = function() {
+            // Call original reset
+            originalReset.call(this);
+          };
           
           statsRef.current.isWebGPU = true;
         } else if (options?.trackCompute && !webGPUState.current.warnedAboutCompute) {
@@ -258,6 +271,12 @@ export function useStatsPanel(options: StatsOptions = {}) {
           renderInfoRef.current.drawCalls = currentDrawCalls;
         }
       }
+
+      // Process WebGPU timestamps after each frame (like stats-gl)
+      if (webGPUState.current.isWebGPU && rendererInfo.current) {
+        // The timestamps should be available here after rendering
+        // We'll read them in the update interval
+      }
     });
     
     return () => unsubscribe();
@@ -310,14 +329,18 @@ export function useStatsPanel(options: StatsOptions = {}) {
         stats.gpu = stats.gpuEMA.update(gpuTime);
       }
 
-      // WebGPU compute tracking - just read it directly like stats-gl does
-      if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
+      // WebGPU compute tracking - read from stored info reference
+      if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery && rendererInfo.current) {
         try {
-          const renderer = get().gl;
-          
-          // Just read the compute timestamp directly from info
-          if ((renderer as any).info && (renderer as any).info.compute) {
-            const computeTimestamp = (renderer as any).info.compute.timestamp;
+          // Read compute timestamp from stored info reference (like stats-gl)
+          if (rendererInfo.current.compute && rendererInfo.current.compute.timestamp !== undefined) {
+            const computeTimestamp = rendererInfo.current.compute.timestamp;
+            
+            // Debug log to see what we're getting
+            if (statsRef.current.frames % 60 === 0) {
+              console.log('Compute timestamp from stored info:', computeTimestamp);
+              console.log('Full compute info:', rendererInfo.current.compute);
+            }
             
             // Only update if we have a valid timestamp
             if (typeof computeTimestamp === 'number' && computeTimestamp > 0) {
@@ -329,7 +352,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
             }
           }
         } catch (error) {
-          // Silent error handling
+          console.error('Error reading compute timestamp:', error);
         }
       }
 
@@ -358,6 +381,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
       }
 
       stats.lastUpdateTime = currentTime;
+      stats.frames++;
 
       // Update the global store
       statsStore.update({
@@ -374,7 +398,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }, updateInterval);
 
     return () => clearInterval(intervalId);
-  }, [options?.updateInterval, options?.trackCompute, gl, get]);
+  }, [options?.updateInterval, options?.trackCompute]);
 
   return null;
 }
