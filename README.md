@@ -383,7 +383,7 @@ const options: StatsOptions = {
 - [Basic Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/basic--default) - Simple scene with stats panel.
 - [Stress Test Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/stress-test--default) - Heavy scene to test performance monitoring.
 - [Custom Styling Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/styling--custom-colors) - Shows how to customize colors and appearance.
-- [Production Example](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/production--optimized) - Optimized settings for production use.
+- [WebGPU Example](https://lhgjxs.csb.app/) - (https://codesandbox.io/p/sandbox/lhgjxs) Experimental WebGPU Compute Example
 
 ## Development
 
