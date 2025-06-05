@@ -108,6 +108,20 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
         </StatItem>
       </StatsContainer>
 
+      {options.trackCompute && stats.isWebGPU && (
+      <StatItem>
+        <StatLabel>Compute (ms)</StatLabel>
+        <StatValue style={{ color: options.defaultColor || undefined }}>
+          {formatMS(stats.compute)}
+          {showMinMax && (
+            <MinMaxValue>
+              {formatMS(minMaxTrackers.compute.getMin())}-{formatMS(minMaxTrackers.compute.getMax())}
+            </MinMaxValue>
+          )}
+        </StatValue>
+      </StatItem>
+    )}
+
       {showTriangles && (
         <StatsContainer style={{ gridTemplateColumns: '1fr 1fr', marginTop: '8px' }}>
           <StatItem>
