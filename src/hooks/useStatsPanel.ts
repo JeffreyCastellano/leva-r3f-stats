@@ -88,7 +88,9 @@ export function useStatsPanel(options: StatsOptions = {}) {
   // For tracking render info
   const renderInfoRef = useRef({
     triangles: 0,
-    drawCalls: 0
+    drawCalls: 0,
+    prevTriangles: 0,
+    prevDrawCalls: 0
   });
 
   // Mount flag
@@ -194,10 +196,28 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, []);
 
-  // Use R3F's frame loop
+  // Use R3F's frame loop - this runs BEFORE render
   useFrame((state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
+
+    // IMPORTANT: Resolve timestamps at the START of frame, before new queries are created
+    if (webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
+      const renderer = gl;
+      
+      if ((renderer as any).resolveTimestampsAsync) {
+        // Synchronously start resolving to prevent buildup
+        try {
+          (renderer as any).resolveTimestampsAsync(0); // RENDER
+          
+          if (options?.trackCompute) {
+            (renderer as any).resolveTimestampsAsync(1); // COMPUTE
+          }
+        } catch (e) {
+          // Silent error handling
+        }
+      }
+    }
 
     // Track frame timestamps for accurate FPS calculation
     stats.frameTimestamps.push(currentTime);
@@ -220,50 +240,41 @@ export function useStatsPanel(options: StatsOptions = {}) {
       stats.vsync = null;
     }
 
+    // Capture render info BEFORE frame (for delta calculation)
+    if (gl.info && gl.info.render) {
+      renderInfoRef.current.prevTriangles = gl.info.render.triangles || 0;
+      renderInfoRef.current.prevDrawCalls = gl.info.render.calls || 0;
+    }
+
     stats.prevTime = currentTime;
   });
 
-  // Capture render info and resolve timestamps after each frame
+  // Capture render info after each frame
   useEffect(() => {
-    if (!gl) return;
+    if (!gl.info) return;
     
-    // Reset info at start
-    if (gl.info && gl.info.reset) {
-      gl.info.reset();
-    }
-    
-    // Capture after each frame and resolve timestamps
+    // Capture after each frame
     const unsubscribe = addAfterEffect(() => {
-      // Capture render info
       if (gl.info && gl.info.render) {
-        renderInfoRef.current.triangles = gl.info.render.triangles || 0;
-        renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
-      }
-
-      // Resolve WebGPU timestamps AFTER EVERY FRAME
-      if (webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
-        const renderer = gl;
+        const currentTriangles = gl.info.render.triangles || 0;
+        const currentDrawCalls = gl.info.render.calls || 0;
         
-        if ((renderer as any).resolveTimestampsAsync) {
-          // Use Promise.all to resolve both at once, but don't await
-          const promises = [
-            (renderer as any).resolveTimestampsAsync(0) // RENDER
-          ];
-          
-          if (options?.trackCompute) {
-            promises.push((renderer as any).resolveTimestampsAsync(1)); // COMPUTE
-          }
-          
-          // Fire and forget - don't block the render loop
-          Promise.all(promises).catch(() => {
-            // Silent error handling
-          });
+        // Calculate per-frame values (delta)
+        renderInfoRef.current.triangles = currentTriangles - renderInfoRef.current.prevTriangles;
+        renderInfoRef.current.drawCalls = currentDrawCalls - renderInfoRef.current.prevDrawCalls;
+        
+        // Handle negative values (in case of reset)
+        if (renderInfoRef.current.triangles < 0) {
+          renderInfoRef.current.triangles = currentTriangles;
+        }
+        if (renderInfoRef.current.drawCalls < 0) {
+          renderInfoRef.current.drawCalls = currentDrawCalls;
         }
       }
     });
     
     return () => unsubscribe();
-  }, [gl, options?.trackCompute]);
+  }, [gl]);
 
   // Update stats at interval
   useEffect(() => {
@@ -318,16 +329,32 @@ export function useStatsPanel(options: StatsOptions = {}) {
           const renderer = get().gl;
           const rendererInfo = (renderer as any)?.info;
           
-          if (rendererInfo?.compute?.timestamp !== undefined && rendererInfo.compute.timestamp !== null) {
-            const computeTime = Number(rendererInfo.compute.timestamp);
+          // Try different locations for compute timestamp
+          let computeTime = 0;
+          
+          // Check renderer.info.compute
+          if (rendererInfo?.compute?.frameCalls !== undefined && rendererInfo.compute.frameCalls > 0) {
+            if (rendererInfo.compute.timestamp !== undefined) {
+              computeTime = Number(rendererInfo.compute.timestamp);
+            } else if (rendererInfo.compute.lastTime !== undefined) {
+              computeTime = Number(rendererInfo.compute.lastTime);
+            }
+          }
+          
+          // Check backend directly
+          if (computeTime === 0 && (renderer as any).backend) {
+            const backend = (renderer as any).backend;
+            if (backend.lastComputeTime !== undefined) {
+              computeTime = Number(backend.lastComputeTime);
+            }
+          }
+          
+          // Validate and update
+          if (!isNaN(computeTime) && computeTime > 0) {
+            stats.compute = stats.computeEMA.update(computeTime);
             
-            // Validate the compute time
-            if (!isNaN(computeTime) && computeTime >= 0) {
-              stats.compute = stats.computeEMA.update(computeTime);
-              
-              if (stats.compute > 0) {
-                globalMinMaxTrackers.compute.update(stats.compute);
-              }
+            if (stats.compute > 0) {
+              globalMinMaxTrackers.compute.update(stats.compute);
             }
           }
         } catch (error) {
