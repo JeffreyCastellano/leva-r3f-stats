@@ -91,9 +91,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     drawCalls: 0
   });
 
-  // Track frame count for timestamp resolution
-  const frameCountRef = useRef(0);
-
   // Mount flag
   useEffect(() => {
     if (!globalCollectorMounted) {
@@ -224,50 +221,49 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
 
     stats.prevTime = currentTime;
-
-    // Increment frame counter
-    frameCountRef.current++;
-
-    // Resolve WebGPU timestamps every 10 frames to prevent pool overflow
-    if (webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery && frameCountRef.current % 10 === 0) {
-      const renderer = get().gl;
-      
-      // Resolve timestamps asynchronously without blocking
-      if ((renderer as any).resolveTimestampsAsync) {
-        // Resolve render timestamps
-        (renderer as any).resolveTimestampsAsync(0).catch((e: any) => {
-          // Silent error handling
-        });
-        
-        // Also resolve compute timestamps if tracking compute
-        if (options?.trackCompute) {
-          (renderer as any).resolveTimestampsAsync(1).catch((e: any) => {
-            // Silent error handling
-          });
-        }
-      }
-    }
   });
 
-  // Capture render info after each frame
+  // Capture render info and resolve timestamps after each frame
   useEffect(() => {
-    if (!gl.info) return;
+    if (!gl) return;
     
     // Reset info at start
-    if (gl.info.reset) {
+    if (gl.info && gl.info.reset) {
       gl.info.reset();
     }
     
-    // Capture after each frame
+    // Capture after each frame and resolve timestamps
     const unsubscribe = addAfterEffect(() => {
+      // Capture render info
       if (gl.info && gl.info.render) {
         renderInfoRef.current.triangles = gl.info.render.triangles || 0;
         renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
       }
+
+      // Resolve WebGPU timestamps AFTER EVERY FRAME
+      if (webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
+        const renderer = gl;
+        
+        if ((renderer as any).resolveTimestampsAsync) {
+          // Use Promise.all to resolve both at once, but don't await
+          const promises = [
+            (renderer as any).resolveTimestampsAsync(0) // RENDER
+          ];
+          
+          if (options?.trackCompute) {
+            promises.push((renderer as any).resolveTimestampsAsync(1)); // COMPUTE
+          }
+          
+          // Fire and forget - don't block the render loop
+          Promise.all(promises).catch(() => {
+            // Silent error handling
+          });
+        }
+      }
     });
     
     return () => unsubscribe();
-  }, [gl]);
+  }, [gl, options?.trackCompute]);
 
   // Update stats at interval
   useEffect(() => {
