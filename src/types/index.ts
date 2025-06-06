@@ -6,6 +6,7 @@ export interface StatsOptions {
   defaultColor?: string;
   showMinMax?: boolean;
   trackCompute?: boolean;
+  aggressiveCount?: boolean;
   vsync?: boolean;
   order?: number;
   folder?: string | { name: string; collapsed?: boolean };

@@ -23,7 +23,6 @@ declare global {
   }
 }
 
-// Global buffers for graph display
 export const globalBuffers = {
   fps: new RingBuffer(100),
   ms: new RingBuffer(100),
@@ -122,19 +121,15 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, []);
 
-  // Check for WebGPU first, before trying WebGL extensions
   useEffect(() => {
     if (!gl) return;
 
-    // Check if it's a WebGPU renderer first
     const isWebGPU = !!(gl && (gl as any).isWebGPURenderer);
     
     if (isWebGPU) {
-      // It's WebGPU, don't try to get WebGL extensions
       webGPUState.current.isWebGPU = true;
       statsRef.current.isWebGPU = true;
       
-      // Enable WebGPU timestamp tracking
       if ((gl as any).backend) {
         (gl as any).backend.trackTimestamp = true;
       }
@@ -143,7 +138,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
       return;
     }
 
-    // Only try WebGL extensions if it's not WebGPU
     try {
       const context = gl.getContext();
       if (!context || typeof context.getExtension !== 'function') return;
@@ -163,12 +157,10 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, [gl]);
 
-  // Check for WebGPU features
   useEffect(() => {
     async function checkWebGPU() {
       const renderer = get().gl;
       
-      // Only run if we haven't already detected WebGPU
       if (!webGPUState.current.isWebGPU) {
         webGPUState.current = {
           isWebGPU: false,
@@ -203,7 +195,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     checkWebGPU();
   }, [get]);
 
-  // Frame timing
   useFrame((state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
@@ -235,21 +226,71 @@ export function useStatsPanel(options: StatsOptions = {}) {
     stats.prevTime = currentTime;
   });
 
-  // WebGL draw calls and triangles tracking
-  useEffect(() => {
-    if (!gl.info || webGPUState.current.isWebGPU) return;
+
+useEffect(() => {
+  if (!gl.info || webGPUState.current.isWebGPU) return;
+  
+  if (options?.aggressiveCount) {
+    // Aggressive mode: Accumulate all geometry processed in a frame
+    let frameAccumulator = {
+      triangles: 0,
+      drawCalls: 0,
+      renderCount: 0
+    };
+    
+    const originalUpdate = gl.info.update;
+    gl.info.update = function(count, mode, instanceCount) {
+      originalUpdate.call(this, count, mode, instanceCount);
+      
+      const triangles = count / 3;
+      frameAccumulator.triangles += triangles;
+      frameAccumulator.drawCalls++;
+    };
     
     const unsubscribe = addAfterEffect(() => {
-      if (gl.info?.render) {
-        statsRef.current.triangles = gl.info.render.triangles || 0;
-        statsRef.current.drawCalls = gl.info.render.calls || 0;
+      if (frameAccumulator.drawCalls > 0) {
+        statsRef.current.triangles = frameAccumulator.triangles;
+        statsRef.current.drawCalls = frameAccumulator.drawCalls;
+        
+        frameAccumulator = {
+          triangles: 0,
+          drawCalls: 0,
+          renderCount: 0
+        };
       }
     });
     
-    return () => unsubscribe();
-  }, [gl]);
+    return () => {
+      gl.info.update = originalUpdate;
+      unsubscribe();
+    };
+  } else {
+    let peakStats = { triangles: 0, drawCalls: 0 };
+    
+    const originalUpdate = gl.info.update;
+    gl.info.update = function(count, mode, instanceCount) {
+      originalUpdate.call(this, count, mode, instanceCount);
+      
+      peakStats.triangles = Math.max(peakStats.triangles, this.render.triangles);
+      peakStats.drawCalls = Math.max(peakStats.drawCalls, this.render.calls);
+    };
+    
+    const unsubscribe = addAfterEffect(() => {
+      if (peakStats.triangles > 0 || peakStats.drawCalls > 0) {
+        statsRef.current.triangles = peakStats.triangles;
+        statsRef.current.drawCalls = peakStats.drawCalls;
+        
+        peakStats = { triangles: 0, drawCalls: 0 };
+      }
+    });
+    
+    return () => {
+      gl.info.update = originalUpdate;
+      unsubscribe();
+    };
+  }
+}, [gl, options?.aggressiveCount]);
 
-  // WebGL GPU timing
   useEffect(() => {
     if (!gpuTimingState.current.available || webGPUState.current.isWebGPU) return;
 
@@ -342,7 +383,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, [gl]);
 
-  // WebGPU timestamp and stats tracking
   useEffect(() => {
     if (!webGPUState.current.isWebGPU) {
       return;
@@ -355,7 +395,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
 
     const resolveTimestamps = () => {
       try {
-        // Check if renderer.info exists
         if (!(renderer as any).info) {
           console.warn('No renderer.info found');
           return;
@@ -380,19 +419,16 @@ export function useStatsPanel(options: StatsOptions = {}) {
           }
         }
 
-        // Handle WebGPU draw calls and triangles (they might be cumulative)
         if ((renderer as any).info.render) {
           const currentCalls = (renderer as any).info.render.calls || 0;
           const currentTriangles = (renderer as any).info.render.triangles || 0;
           
-          // Calculate delta for draw calls
           if (lastDrawCalls > 0 && currentCalls >= lastDrawCalls) {
             statsRef.current.drawCalls = currentCalls - lastDrawCalls;
           } else {
             statsRef.current.drawCalls = currentCalls;
           }
           
-          // Calculate delta for triangles
           if (lastTriangles > 0 && currentTriangles >= lastTriangles) {
             statsRef.current.triangles = currentTriangles - lastTriangles;
           } else {
@@ -407,7 +443,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
       }
     };
 
-    // Check every frame for most accurate results
     intervalId = setInterval(resolveTimestamps, 16); // ~60fps
 
     return () => {
@@ -417,7 +452,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, [get, options?.trackCompute]);
 
-  // Update stats store
   useEffect(() => {
     const updateInterval = options?.updateInterval || 100;
 
@@ -458,7 +492,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     return () => clearInterval(intervalId);
   }, [options?.updateInterval, options?.trackCompute]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       Object.values(globalBuffers).forEach(buffer => buffer.clear());

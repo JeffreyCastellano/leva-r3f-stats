@@ -136,8 +136,8 @@ useStatsPanel({
   
   // Feature toggles
   trackCompute: false,        // Track WebGPU compute (experimental) (default: false)
-  vsync: true,               // Enable VSync detection (default: true)
-  
+  vsync: true,                // Enable VSync detection (default: true)
+  aggressiveCount: false,     // Accumulates count for multipass or postprocessing setups (default:false)
   // Leva integration
   order: -1,                 // Display order in Leva panel (default: -1)
   folder: null,              // Folder name or config (default: null)
@@ -436,6 +436,7 @@ function Scene() {
 - Number of WebGL draw calls per frame
 - Lower is better for performance
 - Each call has overhead
+- Aggressive count makes multipass counting optional
 
 **VSync**
 - Detected display refresh rate

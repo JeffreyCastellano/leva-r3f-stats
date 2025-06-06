@@ -20,9 +20,10 @@ export function stats(options: StatsOptions = {}): ReturnType<typeof statsPlugin
     graphHeight: 0,
     graphHistory: 100,
     columns: undefined,
-    columnsCompact: undefined, // Defaults 4
-    columnsGraph: undefined, // Defaults 2
-    fontSize: undefined, 
+    columnsCompact: undefined,
+    columnsGraph: undefined,
+    fontSize: undefined,
+    aggressiveCount: false,
     stats: {
       fps: { show: true, order: 0 },
       ms: { show: true, order: 1 },
