@@ -10,7 +10,7 @@ interface StoryArgs {
   targetFramerate: number | null;
   showColors: boolean;
   defaultColor: string;
-  showTriangles: boolean;
+  fontSize: number;
   vsync: boolean;
   order: number;
 }
@@ -70,9 +70,9 @@ const meta: Meta<StoryArgs> = {
       control: 'color',
       description: 'Default text color when showColors is false'
     },
-    showTriangles: {
-      control: 'boolean',
-      description: 'Show triangle and draw call counts'
+    fontSize: {
+      control: { type: 'range', min: 8, max: 16, step: 1 },
+      description: 'Font size for compact mode'
     },
     vsync: {
       control: 'boolean',
@@ -94,7 +94,31 @@ export const Default: StoryObj<StoryArgs> = {
     targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
-    showTriangles: false,
+    fontSize: 11,
+    vsync: true,
+    order: -1
+  }
+};
+
+export const SmallFont: StoryObj<StoryArgs> = {
+  args: {
+    updateInterval: 100,
+    targetFramerate: null,
+    showColors: true,
+    defaultColor: '#999999',
+    fontSize: 9,
+    vsync: true,
+    order: -1
+  }
+};
+
+export const LargeFont: StoryObj<StoryArgs> = {
+  args: {
+    updateInterval: 100,
+    targetFramerate: null,
+    showColors: true,
+    defaultColor: '#999999',
+    fontSize: 13,
     vsync: true,
     order: -1
   }

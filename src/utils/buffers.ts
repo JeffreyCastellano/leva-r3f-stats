@@ -1,8 +1,8 @@
 export class CircularBuffer {
   private buffer: Float32Array;
   private pointer: number = 0;
-  private count: number = 0;
-  private size: number;
+  public count: number = 0;
+  public size: number;
 
   constructor(size: number) {
     this.buffer = new Float32Array(size);
@@ -18,7 +18,6 @@ export class CircularBuffer {
   average(): number {
     if (this.count === 0) return 0;
     
-    // Only average the values we've actually added, not the zeros
     let sum = 0;
     const itemsToAverage = Math.min(this.count, this.size);
     
@@ -56,6 +55,40 @@ export class CircularBuffer {
 
     return sum / (end - start);
   }
+
+  getValues(): number[] {
+    const values: number[] = [];
+    const itemsToGet = Math.min(this.count, this.size);
+    
+    for (let i = 0; i < itemsToGet; i++) {
+      const index = (this.pointer - 1 - i + this.size) % this.size;
+      values.push(this.buffer[index]);
+    }
+    
+    return values;
+  }
+
+  getPercentile(percentile: number): number {
+    if (this.count === 0) return 0;
+    
+    const values = this.getValues();
+    values.sort((a, b) => a - b);
+    
+    const index = Math.floor(values.length * percentile);
+    return values[Math.min(index, values.length - 1)];
+  }
+
+  getMin(): number {
+    if (this.count === 0) return 0;
+    const values = this.getValues();
+    return Math.min(...values);
+  }
+
+  getMax(): number {
+    if (this.count === 0) return 0;
+    const values = this.getValues();
+    return Math.max(...values);
+  }
 }
 
 export class ExponentialMovingAverage {
@@ -92,10 +125,12 @@ export class MinMaxTracker {
   private resetInterval: number;
   private history: Array<{ value: number; time: number }> = [];
   private historySize: number = 300; // 5 seconds at 60fps
+  private allTimeHistory: CircularBuffer; // New: for reporting
 
   constructor(resetInterval: number = 5000) {
     this.resetInterval = resetInterval;
     this.lastReset = performance.now();
+    this.allTimeHistory = new CircularBuffer(1000); // Keep more samples for reporting
   }
 
   getMin(): number {
@@ -110,9 +145,25 @@ export class MinMaxTracker {
     return this.current;
   }
 
+  // New: Get average
+  getAverage(): number {
+    return this.allTimeHistory.average();
+  }
+
+  // New: Get percentile
+  getPercentile(percentile: number): number {
+    return this.allTimeHistory.getPercentile(percentile);
+  }
+
+  // New: Get sample count
+  getSampleCount(): number {
+    return this.allTimeHistory.count;
+  }
+
   update(value: number): MinMaxData {
     this.current = value;
     this.history.push({ value, time: performance.now() });
+    this.allTimeHistory.push(value); // New: track for reporting
 
     // Clean old entries
     const cutoffTime = performance.now() - this.resetInterval;
@@ -139,6 +190,7 @@ export class MinMaxTracker {
     this.max = this.current;
     this.history = [];
     this.lastReset = performance.now();
+    this.allTimeHistory = new CircularBuffer(1000); // Reset reporting history too
   }
 }
 

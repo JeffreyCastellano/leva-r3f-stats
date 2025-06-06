@@ -19,11 +19,10 @@ const VSYNC_RATES: VSyncRate[] = [
 export class VSyncDetector {
   private enabled: boolean;
   private frameTimeHistory: number[] = [];
-  private historySize: number = 120; // 2 seconds at 60fps
-  private vsyncThreshold: number = 0.05; // 5% tolerance
+  private historySize: number = 60;
+  private vsyncThreshold: number = 0.05;
   private lastFrameTime: number = 0;
   private detectedVSync: number | null = null;
-  private confidence: number = 0;
 
   constructor(enabled: boolean = true) {
     this.enabled = enabled;
@@ -42,7 +41,6 @@ export class VSyncDetector {
     const frameTime = currentTime - this.lastFrameTime;
     this.lastFrameTime = currentTime;
 
-    // Filter out obvious outliers
     if (frameTime > 0 && frameTime < 100) {
       this.frameTimeHistory.push(frameTime);
       if (this.frameTimeHistory.length > this.historySize) {
@@ -50,21 +48,12 @@ export class VSyncDetector {
       }
     }
 
-    // Need enough samples for reliable detection
-    if (this.frameTimeHistory.length < 60) {
+    if (this.frameTimeHistory.length < 30) {
       return this.detectedVSync;
     }
 
-    // Calculate statistics
     const avgFrameTime = this.frameTimeHistory.reduce((a, b) => a + b) / this.frameTimeHistory.length;
-    const variance = this.frameTimeHistory.reduce((acc, time) =>
-      acc + Math.pow(time - avgFrameTime, 2), 0) / this.frameTimeHistory.length;
-    const stdDev = Math.sqrt(variance);
 
-    // Calculate confidence based on frame time consistency
-    this.confidence = stdDev < 2 ? (1 - stdDev / 2) : 0;
-
-    // Find closest VSync rate
     let closestMatch: VSyncRate | null = null;
     let smallestDiff = Infinity;
 
@@ -76,21 +65,13 @@ export class VSyncDetector {
       }
     }
 
-    // Check if the match is within threshold
     if (closestMatch && (smallestDiff / closestMatch.frameTime <= this.vsyncThreshold)) {
       this.detectedVSync = closestMatch.refreshRate;
     } else {
-      // Custom refresh rate detection
       const customRate = Math.round(1000 / avgFrameTime);
-      if (this.confidence > 0.8) {
-        this.detectedVSync = customRate;
-      }
+      this.detectedVSync = customRate;
     }
 
     return this.detectedVSync;
-  }
-
-  getConfidence(): number {
-    return this.confidence;
   }
 }

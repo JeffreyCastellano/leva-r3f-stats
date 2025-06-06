@@ -1,14 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame, addAfterEffect } from '@react-three/fiber';
 import { useControls } from 'leva';
-import { StatsOptions } from '../types';
+import { StatsOptions, GPUTimingState } from '../types';
 import { stats } from '../plugin';
 import { statsStore } from '../store/statsStore';
 import { VSyncDetector } from '../utils/vsync';
-import { CircularBuffer, ExponentialMovingAverage } from '../utils/buffers';
-import { globalMinMaxTrackers } from '../components/StatsDisplay';
+import { RingBuffer } from '../utils/RingBuffer';
 
-// Add Chrome performance memory extension type
 interface PerformanceMemory {
   usedJSHeapSize: number;
   totalJSHeapSize: number;
@@ -22,380 +20,431 @@ interface ExtendedPerformance extends Performance {
 declare global {
   interface Window {
     performance: ExtendedPerformance;
-    _measuredRefreshRate?: number;
   }
 }
 
-// WebGPU state tracking
+// Global buffers for graph display
+export const globalBuffers = {
+  fps: new RingBuffer(100),
+  ms: new RingBuffer(100),
+  memory: new RingBuffer(100),
+  gpu: new RingBuffer(100),
+  cpu: new RingBuffer(100),
+  compute: new RingBuffer(100),
+  triangles: new RingBuffer(100),
+  drawCalls: new RingBuffer(100)
+};
+
 interface WebGPUState {
   isWebGPU: boolean;
   hasTimestampQuery: boolean;
-  warnedAboutCompute: boolean;
 }
 
-// Global flag to track if collector is mounted
-let globalCollectorMounted = false;
+let globalCollectorInstances = 0;
 
 export function useStatsPanel(options: StatsOptions = {}) {
   const gl = useThree(state => state.gl);
   const scene = useThree(state => state.scene);
-  const camera = useThree(state => state.camera);
   const get = useThree(state => state.get);
 
-  // Force unique control name to prevent caching
   const controlKey = useRef(`Performance_${Math.random().toString(36).substr(2, 9)}`);
+  
+  const folderSettings = options.folder 
+    ? typeof options.folder === 'string' 
+      ? { [options.folder]: { collapsed: false } }
+      : { [options.folder.name]: { collapsed: options.folder.collapsed ?? false } }
+    : undefined;
+  
+  const statsControl = stats(options);
+  const controls:any = options.folder
+    ? typeof options.folder === 'string'
+      ? { [options.folder]: { [controlKey.current]: statsControl } }
+      : { [options.folder.name]: { [controlKey.current]: statsControl } }
+    : { [controlKey.current]: statsControl };
 
-  // Register the Leva control with unique key and order (defaults to -1 for top placement)
   const controlOptions = options.order !== undefined ? { order: options.order } : { order: -1 };
-  useControls({
-    [controlKey.current]: stats(options)
-  }, controlOptions, []);
+  useControls(controls, { ...controlOptions, ...folderSettings }, []);
 
-  // WebGPU state
   const webGPUState = useRef<WebGPUState>({
     isWebGPU: false,
-    hasTimestampQuery: false,
-    warnedAboutCompute: false
+    hasTimestampQuery: false
   });
 
-  // Stats references
+  const gpuTimingState = useRef<GPUTimingState>({
+    available: false,
+    ext: null,
+    query: null,
+    queryInProgress: false,
+    lastGPUTime: 0
+  });
+
   const vsyncDetectorRef = useRef(new VSyncDetector(options?.vsync !== false));
+  
   const statsRef = useRef({
     fps: 0,
     ms: 0,
     memory: 0,
     gpu: 0,
+    cpu: 0,
     compute: 0,
     triangles: 0,
     drawCalls: 0,
     vsync: null as number | null,
     isWebGPU: false,
+    gpuAccurate: false,
 
     frames: 0,
     prevTime: performance.now(),
     lastUpdateTime: performance.now(),
-    startTime: performance.now(), // Track when we started measuring
+    startTime: performance.now(),
 
-    fpsBuffer: new CircularBuffer(30), // Smaller buffer for faster convergence
-    frameTimeBuffer: new CircularBuffer(60),
-    memoryEMA: new ExponentialMovingAverage(0.1),
-    gpuEMA: new ExponentialMovingAverage(0.3),
-    computeEMA: new ExponentialMovingAverage(0.3),
+    frameTimestamps: [] as number[],
+    lastRenderTime: 0,
+    
+  
+    fpsSmooth: 0,
+    msSmooth: 0,
+    gpuSmooth: 0,
+    cpuSmooth: 0,
+    computeSmooth: 0,
+    
 
-    frameTimestamps: [] as number[]
+    frameStartTime: 0,
+    frameEndTime: 0
   });
 
-  // For tracking render info
-  const renderInfoRef = useRef({
-    triangles: 0,
-    drawCalls: 0
-  });
-
-  // Mount flag
+  
   useEffect(() => {
-    if (!globalCollectorMounted) {
-      globalCollectorMounted = true;
-
-      return () => {
-        globalCollectorMounted = false;
-      };
+    globalCollectorInstances++;
+    if (globalCollectorInstances > 1) {
+      console.warn('Multiple Stats instances detected. Only one instance should be active.');
     }
+    return () => {
+      globalCollectorInstances--;
+    };
   }, []);
 
-  // Check for WebGPU support
+  useEffect(() => {
+    if (!gl) return;
+
+    try {
+      const context = gl.getContext() as WebGL2RenderingContext;
+      if (!context) return;
+
+      const ext = context.getExtension('EXT_disjoint_timer_query_webgl2');
+      if (ext) {
+        gpuTimingState.current = {
+          available: true,
+          ext,
+          query: null,
+          queryInProgress: false,
+          lastGPUTime: 0
+        };
+      }
+    } catch (error) {
+      console.debug('GPU timing init failed:', error);
+    }
+  }, [gl]);
+
+
   useEffect(() => {
     async function checkWebGPU() {
       const renderer = get().gl;
       
-      // Reset state
       webGPUState.current = {
         isWebGPU: false,
-        hasTimestampQuery: false,
-        warnedAboutCompute: false
+        hasTimestampQuery: false
       };
       
       try {
-        // Check if it's a WebGPU renderer
         if (renderer && (renderer as any).isWebGPURenderer) {
           webGPUState.current.isWebGPU = true;
           
-          // Try to enable timestamp tracking
           if ((renderer as any).backend) {
             (renderer as any).backend.trackTimestamp = true;
             
-            // Check for timestamp-query feature
             if ((renderer as any).hasFeatureAsync) {
               try {
                 webGPUState.current.hasTimestampQuery = 
                   await (renderer as any).hasFeatureAsync('timestamp-query');
-                
-                if (options?.trackCompute && !webGPUState.current.hasTimestampQuery) {
-                  console.debug(
-                    'leva-r3f-stats: Compute tracking requested but timestamp-query not supported. ' +
-                    'Compute metrics will not be displayed.'
-                  );
-                }
               } catch (e) {
-                // Silent fallback if hasFeatureAsync fails
                 webGPUState.current.hasTimestampQuery = false;
               }
             }
           }
           
           statsRef.current.isWebGPU = true;
-        } else if (options?.trackCompute && !webGPUState.current.warnedAboutCompute) {
-          // Only warn once if compute tracking was requested but not available
-          console.debug(
-            'leva-r3f-stats: Compute tracking requested but WebGPU renderer not detected. ' +
-            'Compute metrics will not be displayed.'
-          );
-          webGPUState.current.warnedAboutCompute = true;
         }
       } catch (error) {
-        // Silent fallback on any error
-        console.debug('leva-r3f-stats: WebGPU detection failed:', error);
+        console.debug('WebGPU detection failed:', error);
       }
     }
     
     checkWebGPU();
-  }, [get, options?.trackCompute]);
+  }, [get]);
 
-  // Reset stats on mount/unmount
-  useEffect(() => {
-    // Reset everything on mount
-    statsStore.update({
-      fps: 0,
-      ms: 0,
-      memory: 0,
-      gpu: 0,
-      compute: 0,
-      triangles: 0,
-      drawCalls: 0,
-      vsync: null,
-      isWebGPU: false
-    });
-
-    // Reset min/max trackers
-    Object.values(globalMinMaxTrackers).forEach(tracker => tracker.reset());
-
-    return () => {
-      // Clean up on unmount
-      statsStore.update({
-        fps: 0,
-        ms: 0,
-        memory: 0,
-        gpu: 0,
-        compute: 0,
-        triangles: 0,
-        drawCalls: 0,
-        vsync: null,
-        isWebGPU: false
-      });
-    };
-  }, []);
-
-  // Use R3F's frame loop
+ 
   useFrame((state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
 
-    // Track frame timestamps for accurate FPS calculation
+    stats.frameStartTime = currentTime;
     stats.frameTimestamps.push(currentTime);
 
-    // Keep only timestamps from last second
+
     const oneSecondAgo = currentTime - 1000;
     stats.frameTimestamps = stats.frameTimestamps.filter(t => t > oneSecondAgo);
 
-    const deltaTime = currentTime - stats.prevTime;
+ 
+    stats.fps = stats.frameTimestamps.length;
 
-    // Update frame time buffer
-    if (deltaTime > 0 && deltaTime < 100) { // Filter out extreme outliers
-      stats.frameTimeBuffer.push(deltaTime);
+ 
+    const frameTime = currentTime - stats.prevTime;
+    if (frameTime > 0 && frameTime < 100) {
+      stats.ms = frameTime;
+      globalBuffers.ms.push(frameTime);
     }
 
-    // Update VSync detection if enabled
+    
     if (options?.vsync !== false) {
       stats.vsync = vsyncDetectorRef.current.update(currentTime);
-    } else {
-      stats.vsync = null;
+    }
+
+    const cpuTime = delta * 1000;
+    if (cpuTime > 0 && cpuTime < 100) {
+      stats.cpu = cpuTime;
+      globalBuffers.cpu.push(cpuTime);
     }
 
     stats.prevTime = currentTime;
   });
 
-  // Capture render info after each frame
   useEffect(() => {
     if (!gl.info) return;
     
-    // Reset info at start
-    if (gl.info.reset) {
-      gl.info.reset();
-    }
-    
-    // Capture after each frame
     const unsubscribe = addAfterEffect(() => {
       if (gl.info && gl.info.render) {
-        renderInfoRef.current.triangles = gl.info.render.triangles || 0;
-        renderInfoRef.current.drawCalls = gl.info.render.calls || 0;
+        statsRef.current.triangles = gl.info.render.triangles || 0;
+        statsRef.current.drawCalls = gl.info.render.calls || 0;
       }
     });
     
     return () => unsubscribe();
   }, [gl]);
 
-  // Resolve WebGPU timestamps to prevent pool overflow
+  useEffect(() => {
+    if (!gpuTimingState.current.available) return;
+
+    const checkGPUResults = () => {
+      const gpuTiming = gpuTimingState.current;
+      const gl2 = gl.getContext() as WebGL2RenderingContext;
+      
+      if (!gl2 || !gpuTiming.ext) return;
+
+      if (!gpuTiming.queryInProgress && gpuTiming.ext) {
+        try {
+          const disjoint = gl2.getParameter(gpuTiming.ext.GPU_DISJOINT_EXT);
+          if (!disjoint) {
+            gpuTiming.query = gl2.createQuery();
+            if (gpuTiming.query) {
+              gl2.beginQuery(gpuTiming.ext.TIME_ELAPSED_EXT, gpuTiming.query);
+              gpuTiming.queryInProgress = true;
+            }
+          } else {
+            console.debug('GPU disjoint detected, skipping frame');
+          }
+        } catch (error) {
+          console.debug('GPU query start failed:', error);
+        }
+      }
+
+      if (gpuTiming.queryInProgress && gpuTiming.query) {
+        try {
+          const available = gl2.getQueryParameter(
+            gpuTiming.query,
+            gl2.QUERY_RESULT_AVAILABLE
+          );
+          
+          if (available) {
+            const disjoint = gl2.getParameter(gpuTiming.ext.GPU_DISJOINT_EXT);
+            
+            if (!disjoint) {
+              const gpuTime = gl2.getQueryParameter(
+                gpuTiming.query,
+                gl2.QUERY_RESULT
+              );
+              
+              const gpuMs = gpuTime / 1000000;
+              
+              if (gpuMs > 0 && gpuMs < 1000) {
+                statsRef.current.gpu = gpuMs;
+                statsRef.current.gpuAccurate = true;
+                globalBuffers.gpu.push(gpuMs);
+              }
+            } else {
+              console.debug('GPU disjoint detected during result read');
+            }
+            
+            gl2.deleteQuery(gpuTiming.query);
+            gpuTiming.query = null;
+            gpuTiming.queryInProgress = false;
+          }
+        } catch (error) {
+          console.debug('GPU query check failed:', error);
+          if (gpuTiming.query) {
+            try {
+              gl2.deleteQuery(gpuTiming.query);
+            } catch (e) {
+            }
+          }
+          gpuTiming.query = null;
+          gpuTiming.queryInProgress = false;
+        }
+      }
+    };
+
+    const endQuery = addAfterEffect(() => {
+      const gpuTiming = gpuTimingState.current;
+      const gl2 = gl.getContext() as WebGL2RenderingContext;
+      
+      if (gpuTiming.queryInProgress && gpuTiming.ext && gl2) {
+        try {
+          gl2.endQuery(gpuTiming.ext.TIME_ELAPSED_EXT);
+        } catch (error) {
+          console.debug('GPU query end failed:', error);
+        }
+      }
+    });
+
+    const intervalId = setInterval(checkGPUResults, 16);
+
+    return () => {
+      clearInterval(intervalId);
+      endQuery();
+    };
+  }, [gl]);
+
+  // WebGPU timestamp
   useEffect(() => {
     if (!webGPUState.current.isWebGPU || !webGPUState.current.hasTimestampQuery) {
       return;
     }
 
     const renderer = get().gl;
-    let resolveIntervalId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout;
 
     const resolveTimestamps = async () => {
       try {
-        // Check if the method exists
-        if ((renderer as any).resolveTimestampsAsync) {
-          // Always resolve render timestamps when using trackTimestamp
-          await (renderer as any).resolveTimestampsAsync(0); // RENDER
+        if (typeof (renderer as any).resolveTimestampsAsync === 'function') {
+          const renderTimestamp = await (renderer as any).resolveTimestampsAsync(0);
           
-          // Also resolve compute timestamps if tracking compute
+          if (renderTimestamp !== undefined && renderTimestamp !== null) {
+            const gpuTime = Number(renderTimestamp);
+            if (!isNaN(gpuTime) && gpuTime > 0) {
+              statsRef.current.gpu = gpuTime;
+              statsRef.current.gpuAccurate = true;
+              globalBuffers.gpu.push(gpuTime);
+            }
+          }
+          
           if (options?.trackCompute) {
-            await (renderer as any).resolveTimestampsAsync(1); // COMPUTE
+            const computeTimestamp = await (renderer as any).resolveTimestampsAsync(1);
+            
+            if (computeTimestamp !== undefined && computeTimestamp !== null) {
+              const computeTime = Number(computeTimestamp);
+              if (!isNaN(computeTime) && computeTime > 0) {
+                statsRef.current.compute = computeTime;
+                globalBuffers.compute.push(computeTime);
+              }
+            }
+          }
+        } 
+        else if ((renderer as any).info?.render?.timestamp !== undefined) {
+          const gpuTime = (renderer as any).info.render.timestamp;
+          if (typeof gpuTime === 'number' && gpuTime > 0) {
+            statsRef.current.gpu = gpuTime;
+            statsRef.current.gpuAccurate = true;
+            globalBuffers.gpu.push(gpuTime);
+          }
+          
+          if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
+            const computeTime = (renderer as any).info.compute.timestamp;
+            if (typeof computeTime === 'number' && computeTime > 0) {
+              statsRef.current.compute = computeTime;
+              globalBuffers.compute.push(computeTime);
+            }
           }
         }
       } catch (error) {
-        // Silent error handling - timestamps will accumulate but won't crash
-        console.debug('Timestamp resolution failed:', error);
       }
     };
 
-    // Start resolving immediately
-    resolveTimestamps();
-    
-    // Then resolve periodically
-    resolveIntervalId = setInterval(resolveTimestamps, 500); // Every 500ms
+    intervalId = setInterval(resolveTimestamps, 250);
 
     return () => {
-      if (resolveIntervalId) {
-        clearInterval(resolveIntervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
       }
     };
   }, [get, options?.trackCompute]);
 
-  // Update stats at interval
   useEffect(() => {
     const updateInterval = options?.updateInterval || 100;
 
     const intervalId = setInterval(() => {
       const stats = statsRef.current;
-      const currentTime = performance.now();
-      const renderInfo = renderInfoRef.current;
 
-      // Calculate FPS properly
-      if (stats.frameTimestamps.length > 0) {
-        const timeSpan = currentTime - stats.startTime;
-        
-        if (timeSpan < 1000) {
-          // For the first second, extrapolate based on current performance
-          const framesInPeriod = stats.frameTimestamps.length;
-          const periodInSeconds = timeSpan / 1000;
-          const extrapolatedFPS = Math.round(framesInPeriod / periodInSeconds);
-          
-          // Push the extrapolated value
-          stats.fpsBuffer.push(extrapolatedFPS);
-          stats.fps = extrapolatedFPS;
-        } else {
-          // After first second, use actual frame count
-          const actualFPS = stats.frameTimestamps.length;
-          stats.fpsBuffer.push(actualFPS);
-          stats.fps = Math.round(stats.fpsBuffer.average());
-        }
+      if (window.performance?.memory) {
+        const memory = Math.round(window.performance.memory.usedJSHeapSize / 1048576);
+        stats.memory = memory;
+        globalBuffers.memory.push(memory);
       }
 
-      // Calculate smoothed frame time
-      if (stats.frameTimeBuffer.average() > 0) {
-        stats.ms = stats.frameTimeBuffer.averageWithoutOutliers(0.05);
+      if (!stats.gpuAccurate && stats.ms > 0) {
+        const estimatedGPU = stats.ms * 0.7;
+        stats.gpu = estimatedGPU;
+        globalBuffers.gpu.push(estimatedGPU);
       }
 
-      // Update memory
-      if ((window.performance as ExtendedPerformance).memory) {
-        const currentMemory = Math.round((window.performance as ExtendedPerformance).memory!.usedJSHeapSize / 1048576);
-        stats.memory = Math.round(stats.memoryEMA.update(currentMemory));
-      }
+      globalBuffers.fps.push(stats.fps);
+      if (stats.triangles > 0) globalBuffers.triangles.push(stats.triangles);
+      if (stats.drawCalls > 0) globalBuffers.drawCalls.push(stats.drawCalls);
 
-      // Simple GPU time approximation based on frame time
-      if (stats.ms > 0) {
-        const gpuTime = stats.ms * 0.7;
-        stats.gpu = stats.gpuEMA.update(gpuTime);
-      }
-
-      // WebGPU compute tracking
-      if (options?.trackCompute && webGPUState.current.isWebGPU && webGPUState.current.hasTimestampQuery) {
-        try {
-          const renderer = get().gl;
-          const rendererInfo = (renderer as any)?.info;
-          
-          if (rendererInfo?.compute?.timestamp !== undefined && rendererInfo.compute.timestamp !== null) {
-            const computeTime = Number(rendererInfo.compute.timestamp);
-            
-            // Validate the compute time
-            if (!isNaN(computeTime) && computeTime >= 0) {
-              stats.compute = stats.computeEMA.update(computeTime);
-              
-              if (stats.compute > 0) {
-                globalMinMaxTrackers.compute.update(stats.compute);
-              }
-            }
-          }
-        } catch (error) {
-          // Silent fallback - compute tracking continues to show 0
-          console.debug('leva-r3f-stats: Compute timestamp collection failed:', error);
-        }
-      }
-
-      // Use the actual render values
-      stats.triangles = renderInfo.triangles;
-      stats.drawCalls = renderInfo.drawCalls;
-
-      // Update min/max trackers only with valid values
-      if (stats.fps > 0) {
-        globalMinMaxTrackers.fps.update(stats.fps);
-      }
-      if (stats.ms > 0) {
-        globalMinMaxTrackers.ms.update(stats.ms);
-      }
-      if (stats.memory > 0) {
-        globalMinMaxTrackers.memory.update(stats.memory);
-      }
-      if (stats.gpu > 0) {
-        globalMinMaxTrackers.gpu.update(stats.gpu);
-      }
-      if (stats.triangles > 0) {
-        globalMinMaxTrackers.triangles.update(stats.triangles);
-      }
-      if (stats.drawCalls > 0) {
-        globalMinMaxTrackers.drawCalls.update(stats.drawCalls);
-      }
-
-      stats.lastUpdateTime = currentTime;
-
-      // Update the global store
       statsStore.update({
         fps: stats.fps,
         ms: stats.ms,
         memory: stats.memory,
         gpu: stats.gpu,
+        cpu: stats.cpu,
         compute: stats.compute,
         triangles: stats.triangles,
         drawCalls: stats.drawCalls,
         vsync: stats.vsync,
-        isWebGPU: webGPUState.current.isWebGPU
+        isWebGPU: webGPUState.current.isWebGPU,
+        gpuAccurate: stats.gpuAccurate
       });
     }, updateInterval);
 
     return () => clearInterval(intervalId);
-  }, [options?.updateInterval, options?.trackCompute, gl, get]);
+  }, [options?.updateInterval, options?.trackCompute]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(globalBuffers).forEach(buffer => buffer.clear());
+      statsStore.reset();
+      
+      if (gpuTimingState.current.query) {
+        const context = gl.getContext() as WebGL2RenderingContext;
+        if (context && context.deleteQuery) {
+          try {
+            context.deleteQuery(gpuTimingState.current.query);
+          } catch (error) {
+            // Silent failure
+          }
+        }
+      }
+    };
+  }, [gl]);
 
   return null;
 }

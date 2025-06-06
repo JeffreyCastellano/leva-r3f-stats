@@ -1,33 +1,19 @@
+// components/StatsDisplay.tsx
 import React, { useEffect, useState } from 'react';
 import { useInputContext } from 'leva/plugin';
 import { statsStore } from '../store/statsStore';
 import { StatsOptions } from '../types';
-import { MinMaxTracker } from '../utils/buffers';
-import { CompactDisplay } from './CompactDisplay';
-import { GridDisplay } from './GridDisplay';
-
-// Global min/max trackers
-const globalMinMaxTrackers: Record<string, MinMaxTracker> = {
-  fps: new MinMaxTracker(),
-  ms: new MinMaxTracker(),
-  memory: new MinMaxTracker(),
-  gpu: new MinMaxTracker(),
-  compute: new MinMaxTracker(),
-  triangles: new MinMaxTracker(),
-  drawCalls: new MinMaxTracker()
-};
+import { ModularDisplay } from './ModularDisplay';
 
 export function StatsDisplay() {
   const { value } = useInputContext<StatsOptions>();
   const [stats, setStats] = useState(statsStore.get());
 
-  // Subscribe to stats updates
   useEffect(() => {
     const unsubscribe = statsStore.subscribe(setStats);
     return unsubscribe;
   }, []);
 
-  // Get options from value with proper defaults
   const options: StatsOptions = {
     updateInterval: 100,
     targetFramerate: null,
@@ -36,32 +22,23 @@ export function StatsDisplay() {
     defaultColor: '#999999',
     showMinMax: true,
     trackCompute: false,
-    showTriangles: false,
     vsync: true,
-    //@ts-ignore
-    ...value // Spread value AFTER defaults to allow overrides
+    graphHeight: 0,
+    graphHistory: 100,
+    fontSize: undefined,
+    stats: {
+      fps: { show: true, order: 0 },
+      ms: { show: true, order: 1 },
+      memory: { show: true, order: 2 },
+      gpu: { show: true, order: 3 },
+      cpu: { show: true, order: 4 },
+      compute: { show: true, order: 5 },
+      triangles: { show: true, order: 6 },
+      drawCalls: { show: true, order: 7 },
+      vsync: { show: true, order: 8 }
+    },
+    ...(value as StatsOptions)
   };
 
-  const compact = options.compact === true; // Ensure boolean
-
-  if (compact) {
-    return (
-      <CompactDisplay
-        stats={stats}
-        options={options}
-        minMaxTrackers={globalMinMaxTrackers}
-      />
-    );
-  }
-
-  return (
-    <GridDisplay
-      stats={stats}
-      options={options}
-      minMaxTrackers={globalMinMaxTrackers}
-    />
-  );
+  return <ModularDisplay stats={stats} options={options} />;
 }
-
-// Export the min/max trackers for use in the hook
-export { globalMinMaxTrackers };

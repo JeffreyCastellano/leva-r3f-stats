@@ -1,3 +1,4 @@
+// Basic.stories.tsx
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Canvas } from '@react-three/fiber';
@@ -13,10 +14,40 @@ interface StoryArgs {
   showMinMax: boolean;
   vsync: boolean;
   order: number;
+  fontSize: number;
+  // Stat visibility and ordering
+  showFPS: boolean;
+  orderFPS: number;
+  showMS: boolean;
+  orderMS: number;
+  showMemory: boolean;
+  orderMemory: number;
+  showGPU: boolean;
+  orderGPU: number;
+  showCPU: boolean;
+  orderCPU: number;
 }
 
 function Scene({ args }: { args: StoryArgs }) {
-  useStatsPanel(args);
+  const {
+    showFPS, orderFPS,
+    showMS, orderMS,
+    showMemory, orderMemory,
+    showGPU, orderGPU,
+    showCPU, orderCPU,
+    ...restArgs
+  } = args;
+
+  useStatsPanel({
+    ...restArgs,
+    stats: {
+      fps: { show: showFPS, order: orderFPS },
+      ms: { show: showMS, order: orderMS },
+      memory: { show: showMemory, order: orderMemory },
+      gpu: { show: showGPU, order: orderGPU },
+      cpu: { show: showCPU, order: orderCPU },
+    }
+  });
 
   return (
     <>
@@ -34,7 +65,6 @@ function Scene({ args }: { args: StoryArgs }) {
 }
 
 function StoryComponent(args: StoryArgs) {
-  // Key the scene by stringifying args to force remount on change
   const sceneKey = JSON.stringify(args);
   
   return (
@@ -82,7 +112,22 @@ const meta: Meta<StoryArgs> = {
     order: {
       control: { type: 'range', min: -10, max: 10, step: 1 },
       description: 'Display order in Leva panel (lower numbers appear first)'
-    }
+    },
+    fontSize: {
+      control: { type: 'range', min: 8, max: 16, step: 1 },
+      description: 'Font size for stats display'
+    },
+    // Individual stat controls
+    showFPS: { control: 'boolean', description: 'Show FPS stat' },
+    orderFPS: { control: { type: 'number', min: 0, max: 10 }, description: 'FPS display order' },
+    showMS: { control: 'boolean', description: 'Show MS stat' },
+    orderMS: { control: { type: 'number', min: 0, max: 10 }, description: 'MS display order' },
+    showMemory: { control: 'boolean', description: 'Show Memory stat' },
+    orderMemory: { control: { type: 'number', min: 0, max: 10 }, description: 'Memory display order' },
+    showGPU: { control: 'boolean', description: 'Show GPU stat' },
+    orderGPU: { control: { type: 'number', min: 0, max: 10 }, description: 'GPU display order' },
+    showCPU: { control: 'boolean', description: 'Show CPU stat' },
+    orderCPU: { control: { type: 'number', min: 0, max: 10 }, description: 'CPU display order' },
   }
 };
 
@@ -97,7 +142,42 @@ export const Default: StoryObj<StoryArgs> = {
     defaultColor: '#999999',
     showMinMax: true,
     vsync: true,
-    order: -1
+    order: -1,
+    fontSize: 12,
+    showFPS: true,
+    orderFPS: 0,
+    showMS: true,
+    orderMS: 1,
+    showMemory: true,
+    orderMemory: 2,
+    showGPU: true,
+    orderGPU: 3,
+    showCPU: true,
+    orderCPU: 4,
+  },
+  render: (args) => <StoryComponent {...args} />
+};
+
+export const CustomOrder: StoryObj<StoryArgs> = {
+  args: {
+    updateInterval: 100,
+    targetFramerate: null,
+    showColors: true,
+    defaultColor: '#999999',
+    showMinMax: true,
+    vsync: true,
+    order: -1,
+    fontSize: 12,
+    showFPS: true,
+    orderFPS: 2,
+    showMS: true,
+    orderMS: 0,
+    showMemory: true,
+    orderMemory: 1,
+    showGPU: true,
+    orderGPU: 3,
+    showCPU: false,
+    orderCPU: 4,
   },
   render: (args) => <StoryComponent {...args} />
 };

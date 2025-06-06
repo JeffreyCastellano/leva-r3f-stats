@@ -1,11 +1,12 @@
+// components/GridDisplay.tsx
 import React from 'react';
 import { StatsData, StatsOptions } from '../types';
-import { MinMaxTracker } from '../utils/buffers';
 import { formatFPS, formatMS, formatMemory, formatGPU, formatTo3Digits, formatTriangles } from '../utils/formatters';
 import { calculateThresholds, getTargetFrameRate } from '../utils/thresholds';
+import { globalBuffers } from '../hooks/useStatsPanel';
 import {
-  StatsContainer,
-  StatItem,
+  StatsGridContainer,
+  StatItemContainer,
   StatLabel,
   StatValue,
   MinMaxValue
@@ -14,14 +15,11 @@ import {
 interface GridDisplayProps {
   stats: StatsData;
   options: StatsOptions;
-  minMaxTrackers: Record<string, MinMaxTracker>;
 }
 
-export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps) {
+export function GridDisplay({ stats, options }: GridDisplayProps) {
   const showMinMax = options.showMinMax !== false;
-  const showTriangles = options.showTriangles || false;
 
-  // Determine target framerate
   let targetFPS: number;
   if (options.targetFramerate && options.targetFramerate > 0) {
     targetFPS = options.targetFramerate;
@@ -31,7 +29,6 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
 
   const thresholds = calculateThresholds(targetFPS);
 
-  // Helper functions to get colors
   const getFPSColor = (fps: number) => {
     if (fps < thresholds.fpsCritical) return '#ff6b6b';
     if (fps < thresholds.fpsWarning) return '#ffd93d';
@@ -44,12 +41,12 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
     return '#51cf66';
   };
 
-  const { fps, ms, memory, gpu, triangles, drawCalls } = stats;
+  const { fps, ms, memory, gpu } = stats;
 
   return (
     <>
-      <StatsContainer>
-        <StatItem>
+      <StatsGridContainer>
+        <StatItemContainer>
           <StatLabel>
             FPS (target: {targetFPS})
           </StatLabel>
@@ -59,13 +56,13 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
             {formatFPS(fps)}
             {showMinMax && (
               <MinMaxValue>
-                {formatFPS(minMaxTrackers.fps.getMin())}-{formatFPS(minMaxTrackers.fps.getMax())}
+                {formatFPS(globalBuffers.fps.getMin())}-{formatFPS(globalBuffers.fps.getMax())}
               </MinMaxValue>
             )}
           </StatValue>
-        </StatItem>
+        </StatItemContainer>
 
-        <StatItem>
+        <StatItemContainer>
           <StatLabel>MS (target: {thresholds.targetMS.toFixed(1)})</StatLabel>
           <StatValue style={{
             color: options.showColors !== false ? getMSColor(ms) : options.defaultColor
@@ -73,13 +70,13 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
             {formatMS(ms)}
             {showMinMax && (
               <MinMaxValue>
-                {formatMS(minMaxTrackers.ms.getMin())}-{formatMS(minMaxTrackers.ms.getMax())}
+                {formatMS(globalBuffers.ms.getMin())}-{formatMS(globalBuffers.ms.getMax())}
               </MinMaxValue>
             )}
           </StatValue>
-        </StatItem>
+        </StatItemContainer>
 
-        <StatItem>
+        <StatItemContainer>
           <StatLabel>Memory (MB)</StatLabel>
           <StatValue style={{
             color: options.defaultColor || undefined
@@ -87,13 +84,13 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
             {formatMemory(memory)}
             {showMinMax && (
               <MinMaxValue>
-                {formatMemory(minMaxTrackers.memory.getMin())}-{formatMemory(minMaxTrackers.memory.getMax())}
+                {formatMemory(globalBuffers.memory.getMin())}-{formatMemory(globalBuffers.memory.getMax())}
               </MinMaxValue>
             )}
           </StatValue>
-        </StatItem>
+        </StatItemContainer>
 
-        <StatItem>
+        <StatItemContainer>
           <StatLabel>GPU (ms)</StatLabel>
           <StatValue style={{
             color: options.showColors !== false ? getMSColor(parseFloat(gpu.toString())) : options.defaultColor
@@ -101,61 +98,29 @@ export function GridDisplay({ stats, options, minMaxTrackers }: GridDisplayProps
             {formatGPU(gpu)}
             {showMinMax && (
               <MinMaxValue>
-                {formatGPU(minMaxTrackers.gpu.getMin())}-{formatGPU(minMaxTrackers.gpu.getMax())}
+                {formatGPU(globalBuffers.gpu.getMin())}-{formatGPU(globalBuffers.gpu.getMax())}
               </MinMaxValue>
             )}
           </StatValue>
-        </StatItem>
-      </StatsContainer>
+        </StatItemContainer>
+      </StatsGridContainer>
 
-      {options.trackCompute && stats.isWebGPU && (
-          <StatsContainer>
-        <StatItem>
-          <StatLabel>Compute (ms)</StatLabel>
-          <StatValue style={{
-            color: options.showColors !== false ? getMSColor(stats.compute) : options.defaultColor
-          }}>
-            {formatMS(stats.compute)}
-            {showMinMax && (
-              <MinMaxValue>
-                {formatMS(minMaxTrackers.compute.getMin())}-{formatMS(minMaxTrackers.compute.getMax())}
-              </MinMaxValue>
-            )}
-          </StatValue>
-        </StatItem>
-          </StatsContainer>
-      )}
-
-      {showTriangles && (
-        <StatsContainer style={{ gridTemplateColumns: '1fr 1fr', marginTop: '8px' }}>
-          <StatItem>
-            <StatLabel>Triangles</StatLabel>
+      {options.trackCompute && stats.isWebGPU && stats.compute > 0 && (
+        <StatsGridContainer>
+          <StatItemContainer>
+            <StatLabel>Compute (ms)</StatLabel>
             <StatValue style={{
-              color: options.defaultColor || undefined
+              color: options.showColors !== false ? getMSColor(stats.compute) : options.defaultColor
             }}>
-              {formatTriangles(triangles)}
+              {formatMS(stats.compute)}
               {showMinMax && (
                 <MinMaxValue>
-                  {formatTriangles(minMaxTrackers.triangles.getMin())}-{formatTriangles(minMaxTrackers.triangles.getMax())}
+                  {formatMS(globalBuffers.compute.getMin())}-{formatMS(globalBuffers.compute.getMax())}
                 </MinMaxValue>
               )}
             </StatValue>
-          </StatItem>
-
-          <StatItem>
-            <StatLabel>Draw Calls</StatLabel>
-            <StatValue style={{
-              color: options.defaultColor || undefined
-            }}>
-              {formatTo3Digits(drawCalls)}
-              {showMinMax && (
-                <MinMaxValue>
-                  {formatTo3Digits(minMaxTrackers.drawCalls.getMin())}-{formatTo3Digits(minMaxTrackers.drawCalls.getMax())}
-                </MinMaxValue>
-              )}
-            </StatValue>
-          </StatItem>
-        </StatsContainer>
+          </StatItemContainer>
+        </StatsGridContainer>
       )}
     </>
   );

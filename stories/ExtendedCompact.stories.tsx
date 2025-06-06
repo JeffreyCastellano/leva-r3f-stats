@@ -11,11 +11,17 @@ interface StoryArgs {
   targetFramerate: number | null;
   showColors: boolean;
   defaultColor: string;
-  showTriangles: boolean;
+  fontSize: number;
   vsync: boolean;
   meshCount: number;
   meshType: 'box' | 'sphere' | 'cone';
   order: number;
+  orderFPS: number;
+  orderMS: number;
+  orderMemory: number;
+  orderGPU: number;
+  orderTriangles: number;
+  orderDrawCalls: number;
 }
 
 function RotatingMesh({ position, type }: { position: [number, number, number], type: string }) {
@@ -42,10 +48,26 @@ function RotatingMesh({ position, type }: { position: [number, number, number], 
 }
 
 function Scene({ args }: { args: StoryArgs }) {
-  const { meshCount = 20, meshType = 'box', ...statsOptions } = args;
-  useStatsPanel({ ...statsOptions, compact: true });
+  const { 
+    meshCount = 20, 
+    meshType = 'box',
+    orderFPS, orderMS, orderMemory, orderGPU, orderTriangles, orderDrawCalls,
+    ...statsOptions 
+  } = args;
+  
+  useStatsPanel({ 
+    ...statsOptions, 
+    compact: true,
+    stats: {
+      fps: { show: true, order: orderFPS },
+      ms: { show: true, order: orderMS },
+      memory: { show: true, order: orderMemory },
+      gpu: { show: true, order: orderGPU },
+      triangles: { show: true, order: orderTriangles },
+      drawCalls: { show: true, order: orderDrawCalls },
+    }
+  });
 
-  // Create a grid of meshes
   const meshes: React.ReactElement[] = [];
   const gridSize = Math.ceil(Math.sqrt(meshCount));
   for (let i = 0; i < meshCount; i++) {
@@ -104,9 +126,9 @@ const meta: Meta<StoryArgs> = {
       control: 'color',
       description: 'Default text color when showColors is false'
     },
-    showTriangles: {
-      control: 'boolean',
-      description: 'Show triangle and draw call counts'
+    fontSize: {
+      control: { type: 'range', min: 8, max: 16, step: 1 },
+      description: 'Font size for compact mode'
     },
     vsync: {
       control: 'boolean',
@@ -124,7 +146,13 @@ const meta: Meta<StoryArgs> = {
     order: {
       control: { type: 'range', min: -10, max: 10, step: 1 },
       description: 'Display order in Leva panel (lower numbers appear first)'
-    }
+    },
+    orderFPS: { control: { type: 'number', min: 0, max: 10 }, description: 'FPS display order' },
+    orderMS: { control: { type: 'number', min: 0, max: 10 }, description: 'MS display order' },
+    orderMemory: { control: { type: 'number', min: 0, max: 10 }, description: 'Memory display order' },
+    orderGPU: { control: { type: 'number', min: 0, max: 10 }, description: 'GPU display order' },
+    orderTriangles: { control: { type: 'number', min: 0, max: 10 }, description: 'Triangles display order' },
+    orderDrawCalls: { control: { type: 'number', min: 0, max: 10 }, description: 'Draw calls display order' },
   }
 };
 
@@ -137,10 +165,36 @@ export const Default: StoryObj<StoryArgs> = {
     targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
-    showTriangles: true,
+    fontSize: 11,
     vsync: true,
     meshCount: 10,
     meshType: 'box',
-    order: -1
+    order: -1,
+    orderFPS: 0,
+    orderMS: 1,
+    orderMemory: 2,
+    orderGPU: 3,
+    orderTriangles: 4,
+    orderDrawCalls: 5,
+  }
+};
+
+export const ReorderedStats: StoryObj<StoryArgs> = {
+  args: {
+    updateInterval: 100,
+    targetFramerate: null,
+    showColors: true,
+    defaultColor: '#999999',
+    fontSize: 10,
+    vsync: true,
+    meshCount: 15,
+    meshType: 'sphere',
+    order: -1,
+    orderFPS: 5,
+    orderMS: 0,
+    orderMemory: 3,
+    orderGPU: 1,
+    orderTriangles: 2,
+    orderDrawCalls: 4,
   }
 };

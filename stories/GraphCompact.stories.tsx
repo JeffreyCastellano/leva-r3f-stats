@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box } from '@react-three/drei';
+import { OrbitControls, Torus, TorusKnot } from '@react-three/drei';
 import { Leva } from 'leva';
 import { useStatsPanel } from '../src';
 import * as THREE from 'three';
@@ -11,49 +11,40 @@ interface StoryArgs {
   targetFramerate: number | null;
   showColors: boolean;
   defaultColor: string;
-  showMinMax: boolean;
-  vsync: boolean;
-  meshCount: number;
+  graphHeight: number;
+  trackCompute: boolean;
   order: number;
   fontSize: number;
 }
 
-function RotatingMesh({ position }: { position: [number, number, number] }) {
+function ComplexMesh() {
   const meshRef = useRef<THREE.Mesh>(null);
 
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.x += delta;
-      meshRef.current.rotation.y += delta * 0.5;
+      meshRef.current.rotation.x = state.clock.elapsedTime * 0.3;
+      meshRef.current.rotation.y = state.clock.elapsedTime * 0.5;
     }
   });
 
   return (
-    <Box ref={meshRef} args={[2, 2, 2]} position={position}>
-      <meshStandardMaterial color="purple" />
-    </Box>
+    <TorusKnot ref={meshRef} args={[10, 3, 128, 32]}>
+      <meshStandardMaterial color="#6b6bff" metalness={0.5} roughness={0.2} />
+    </TorusKnot>
   );
 }
 
 function Scene({ args }: { args: StoryArgs }) {
-  const { meshCount = 10, ...statsOptions } = args;
-  useStatsPanel(statsOptions);
-
-  const meshes: JSX.Element[] = [];
-  const gridSize = Math.ceil(Math.sqrt(meshCount));
-  for (let i = 0; i < meshCount; i++) {
-    const x = (i % gridSize) * 3 - (gridSize * 3) / 2;
-    const z = Math.floor(i / gridSize) * 3 - (gridSize * 3) / 2;
-    meshes.push(
-      <RotatingMesh key={i} position={[x, 0, z]} />
-    );
-  }
+  useStatsPanel({ 
+    ...args,
+    compact: true,
+  });
 
   return (
     <>
       <ambientLight intensity={0.5} />
       <pointLight position={[10, 10, 10]} />
-      {meshes}
+      <ComplexMesh />
       <OrbitControls />
     </>
   );
@@ -65,7 +56,7 @@ function StoryComponent(args: StoryArgs) {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <Leva 
-        key="extended-story"
+        key="graph-compact-story"
         oneLineLabels={false}
       />
       <Canvas>
@@ -76,7 +67,7 @@ function StoryComponent(args: StoryArgs) {
 }
 
 const meta: Meta<StoryArgs> = {
-  title: 'leva-r3f-stats/Extended',
+  title: 'leva-r3f-stats/Graph Compact',
   component: StoryComponent,
   argTypes: {
     updateInterval: {
@@ -90,27 +81,23 @@ const meta: Meta<StoryArgs> = {
     },
     showColors: {
       control: 'boolean',
-      description: 'Show performance-based colors'
+      description: 'Show performance-based colors in compact display'
     },
     defaultColor: {
       control: 'color',
       description: 'Default text color when showColors is false'
     },
-    showMinMax: {
-      control: 'boolean',
-      description: 'Show min/max values'
+    graphHeight: {
+      control: { type: 'range', min: 16, max: 48, step: 4 },
+      description: 'Height of graphs (minimum 16px)'
     },
-    vsync: {
+    trackCompute: {
       control: 'boolean',
-      description: 'Enable VSync detection'
-    },
-    meshCount: {
-      control: { type: 'range', min: 1, max: 100, step: 1 },
-      description: 'Number of rotating meshes'
+      description: 'Track WebGPU compute (if available)'
     },
     order: {
       control: { type: 'range', min: -10, max: 10, step: 1 },
-      description: 'Display order in Leva panel (lower numbers appear first)'
+      description: 'Display order in Leva panel'
     },
     fontSize: {
       control: { type: 'range', min: 8, max: 16, step: 1 },
@@ -122,30 +109,28 @@ const meta: Meta<StoryArgs> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: StoryObj<StoryArgs> = {
+export const MicroGraphs: StoryObj<StoryArgs> = {
   args: {
     updateInterval: 100,
     targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
-    showMinMax: true,
-    vsync: true,
-    meshCount: 10,
+    graphHeight: 24,
+    trackCompute: false,
     order: -1,
-    fontSize: 12
+    fontSize: 9,
   }
 };
 
-export const ManyMeshes: StoryObj<StoryArgs> = {
+export const CompactGraphs: StoryObj<StoryArgs> = {
   args: {
     updateInterval: 100,
-    targetFramerate: 144,
+    targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
-    showMinMax: true,
-    vsync: true,
-    meshCount: 50,
+    graphHeight: 32,
+    trackCompute: false,
     order: -1,
-    fontSize: 12
+    fontSize: 11,
   }
 };
