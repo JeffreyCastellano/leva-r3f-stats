@@ -19,32 +19,6 @@ export function StatItem({ config, stats, showMinMax, showColors, defaultColor, 
 
   const color = showColors && config.color ? config.color(value, null as any) : defaultColor;
 
-  if (compact) {
-    if (config.key === 'vsync' && value) {
-      return (
-        <div style={styles.statItemCompact}>
-          <span style={{ fontSize: '9px', opacity: 0.5 }}>
-            {config.format(value)}
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div style={styles.statItemCompact}>
-        <span style={styles.statLabelCompact}>{config.shortLabel}:</span>
-        <span style={{
-          ...styles.statValueCompact,
-          color: color || '#999999',
-          minWidth: config.key === 'triangles' ? '40px' : '28px',
-          fontFamily: 'monospace'
-        }}>
-          {config.format(value)}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div style={styles.statItem}>
       <div style={styles.statLabel}>{config.label}</div>

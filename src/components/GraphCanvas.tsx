@@ -1,6 +1,6 @@
 // src/components/GraphCanvas.tsx
 import { useRef, useEffect } from 'react';
-import { RingBuffer } from '../utils/RingBuffer';
+import { RingBuffer } from '../utils/buffer';
 import { styles } from '../styles/styled';
 
 interface GraphCanvasProps {

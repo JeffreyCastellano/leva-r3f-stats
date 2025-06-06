@@ -1,4 +1,4 @@
-import { RingBuffer } from './RingBuffer';
+import { RingBuffer } from './buffer';
 
 interface VSyncRate {
   refreshRate: number;

@@ -88,16 +88,8 @@ export function useStatsPanel(options: StatsOptions = {}) {
     startTime: performance.now(),
 
     frameTimestamps: [] as number[],
-    lastRenderTime: 0,
     
-    fpsSmooth: 0,
-    msSmooth: 0,
-    gpuSmooth: 0,
-    cpuSmooth: 0,
-    computeSmooth: 0,
-    
-    frameStartTime: 0,
-    frameEndTime: 0
+    frameStartTime: 0
   });
 
   

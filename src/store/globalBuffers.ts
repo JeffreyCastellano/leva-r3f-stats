@@ -1,4 +1,4 @@
-import { RingBuffer } from '../utils/RingBuffer';
+import { RingBuffer } from '../utils/buffer';
 
 export const globalBuffers = {
   fps: new RingBuffer(100),
