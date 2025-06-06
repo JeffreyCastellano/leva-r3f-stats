@@ -1,13 +1,6 @@
-// components/GraphCanvas.tsx
 import { useRef, useEffect } from 'react';
-import { styled } from '@stitches/react';
 import { RingBuffer } from '../utils/RingBuffer';
-
-const Canvas = styled('canvas', {
-  display: 'block',
-  width: '100%',
-  imageRendering: 'pixelated',
-});
+import { styles } from '../styles/styled';
 
 interface GraphCanvasProps {
   data: RingBuffer;
@@ -116,5 +109,5 @@ export function GraphCanvas({ data, color, min, max, height, label, unit, curren
     };
   }, [data, color, min, max, label, unit, currentValue]);
 
-  return <Canvas ref={canvasRef} style={{ height: `${height}px` }} />;
+  return <canvas ref={canvasRef} style={{ ...styles.canvas, height: `${height}px` }} />;
 }
