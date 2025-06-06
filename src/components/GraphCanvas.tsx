@@ -1,5 +1,5 @@
 // components/GraphCanvas.tsx
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { styled } from '@stitches/react';
 import { RingBuffer } from '../utils/RingBuffer';
 

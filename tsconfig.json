@@ -1,3 +1,4 @@
+// tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2015",
@@ -17,8 +18,32 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": false,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "removeComments": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": false,
+    "importsNotUsedAsValues": "remove",
+    "stripInternal": true,
+    "alwaysStrict": true,
+    "useDefineForClassFields": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "stories", ".storybook", "**/*.stories.tsx"]
+  "exclude": [
+    "node_modules", 
+    "dist", 
+    "stories", 
+    ".storybook", 
+    "**/*.stories.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "examples",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }

@@ -1,5 +1,4 @@
-// components/StatsDisplay.tsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useInputContext } from 'leva/plugin';
 import { statsStore } from '../store/statsStore';
 import { StatsOptions } from '../types';

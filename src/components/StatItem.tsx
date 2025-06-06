@@ -1,16 +1,6 @@
-// components/StatItem.tsx
-import React from 'react';
 import { StatConfig, StatsData } from '../types';
-import { globalBuffers } from '../hooks/useStatsPanel';
-import {
-  StatItemContainer,
-  StatLabel,
-  StatValue,
-  MinMaxValue,
-  StatItemCompact,
-  StatLabelCompact,
-  StatValueCompact
-} from '../styles/styled';
+import { globalBuffers } from '../store/globalBuffers';
+import { styles } from '../styles/styled';
 
 interface StatItemProps {
   config: StatConfig;
@@ -32,39 +22,40 @@ export function StatItem({ config, stats, showMinMax, showColors, defaultColor, 
   if (compact) {
     if (config.key === 'vsync' && value) {
       return (
-        <StatItemCompact>
-          <StatLabelCompact style={{ fontSize: '9px', opacity: 0.5 }}>
+        <div style={styles.statItemCompact}>
+          <span style={{ fontSize: '9px', opacity: 0.5 }}>
             {config.format(value)}
-          </StatLabelCompact>
-        </StatItemCompact>
+          </span>
+        </div>
       );
     }
 
     return (
-      <StatItemCompact>
-        <StatLabelCompact>{config.shortLabel}:</StatLabelCompact>
-        <StatValueCompact style={{
+      <div style={styles.statItemCompact}>
+        <span style={styles.statLabelCompact}>{config.shortLabel}:</span>
+        <span style={{
+          ...styles.statValueCompact,
           color: color || '#999999',
           minWidth: config.key === 'triangles' ? '40px' : '28px',
           fontFamily: 'monospace'
         }}>
           {config.format(value)}
-        </StatValueCompact>
-      </StatItemCompact>
+        </span>
+      </div>
     );
   }
 
   return (
-    <StatItemContainer>
-      <StatLabel>{config.label}</StatLabel>
-      <StatValue style={{ color }}>
+    <div style={styles.statItem}>
+      <div style={styles.statLabel}>{config.label}</div>
+      <div style={{ ...styles.statValue, color }}>
         {config.format(value)}
         {showMinMax && buffer && (
-          <MinMaxValue>
+          <span style={styles.minMaxValue}>
             {config.format(buffer.getMin())}-{config.format(buffer.getMax())}
-          </MinMaxValue>
+          </span>
         )}
-      </StatValue>
-    </StatItemContainer>
+      </div>
+    </div>
   );
 }

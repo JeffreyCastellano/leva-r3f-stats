@@ -1,3 +1,4 @@
+// src/hooks/useStatsPanel.ts
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame, addAfterEffect } from '@react-three/fiber';
 import { useControls } from 'leva';
@@ -5,7 +6,7 @@ import { StatsOptions, GPUTimingState } from '../types';
 import { stats } from '../plugin';
 import { statsStore } from '../store/statsStore';
 import { VSyncDetector } from '../utils/vsync';
-import { RingBuffer } from '../utils/RingBuffer';
+import { globalBuffers } from '../store/globalBuffers';
 
 interface PerformanceMemory {
   usedJSHeapSize: number;
@@ -23,17 +24,6 @@ declare global {
   }
 }
 
-export const globalBuffers = {
-  fps: new RingBuffer(100),
-  ms: new RingBuffer(100),
-  memory: new RingBuffer(100),
-  gpu: new RingBuffer(100),
-  cpu: new RingBuffer(100),
-  compute: new RingBuffer(100),
-  triangles: new RingBuffer(100),
-  drawCalls: new RingBuffer(100)
-};
-
 interface WebGPUState {
   isWebGPU: boolean;
   hasTimestampQuery: boolean;
@@ -43,7 +33,6 @@ let globalCollectorInstances = 0;
 
 export function useStatsPanel(options: StatsOptions = {}) {
   const gl = useThree(state => state.gl);
-  const scene = useThree(state => state.scene);
   const get = useThree(state => state.get);
 
   const controlKey = useRef(`Performance_${Math.random().toString(36).substr(2, 9)}`);
@@ -195,7 +184,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     checkWebGPU();
   }, [get]);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
 
