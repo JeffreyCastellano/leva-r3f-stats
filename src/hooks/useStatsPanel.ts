@@ -166,36 +166,23 @@ export function useStatsPanel(options: StatsOptions = {}) {
   }, [gl]);
 
 // WebGPU timestamp
-useEffect(() => {
-  if (!webGPUState.current.isWebGPU) {
-    return;
-  }
-
-  const renderer = get().gl;
-  let intervalId: NodeJS.Timeout;
-  let frameCleanupId: any;
-
-  const frameCleanup = addAfterEffect(() => {
-    if ((renderer as any).backend?.trackTimestamp) {
-      Promise.resolve().then(async () => {
-        try {
-          await (renderer as any).resolveTimestampsAsync();
-        } catch (e) {
-          console.warn('WebGPU timestamp failure:', e);
-        }
-      });
+  useEffect(() => {
+    if (!webGPUState.current.isWebGPU) {
+      return;
     }
-  });
 
-  const resolveTimestamps = async () => {
-    try {
-      // Check if we have the info object with timestamps first
-      if ((renderer as any).info?.render?.timestamp !== undefined) {
-        const gpuTime = (renderer as any).info.render.timestamp;
-        if (typeof gpuTime === 'number' && gpuTime > 0) {
-          statsRef.current.gpu = gpuTime;
-          statsRef.current.gpuAccurate = true;
-          globalBuffers.gpu.push(gpuTime);
+    const renderer = get().gl;
+    let intervalId: NodeJS.Timeout;
+
+    const resolveTimestamps = () => {
+      try {
+        if ((renderer as any).info?.render?.timestamp !== undefined) {
+          const gpuTime = (renderer as any).info.render.timestamp;
+          if (typeof gpuTime === 'number' && gpuTime > 0) {
+            statsRef.current.gpu = gpuTime;
+            statsRef.current.gpuAccurate = true;
+            globalBuffers.gpu.push(gpuTime);
+          }
         }
         
         if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
@@ -205,24 +192,19 @@ useEffect(() => {
             globalBuffers.compute.push(computeTime);
           }
         }
+      } catch (error) {
+        // Silent fail
       }
-    } catch (error) {
-      console.warn('WebGPU timestamp failure:', error);
-    }
-  };
+    };
 
-  intervalId = setInterval(resolveTimestamps, 250);
-  frameCleanupId = frameCleanup;
+    intervalId = setInterval(resolveTimestamps, 100); // Reduced from 250ms
 
-  return () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-    }
-    if (frameCleanupId) {
-      frameCleanupId();
-    }
-  };
-}, [get, options?.trackCompute]);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [get, options?.trackCompute]);
 
  
   useFrame((state, delta) => {
@@ -264,9 +246,14 @@ useEffect(() => {
     if (!gl.info) return;
     
     const unsubscribe = addAfterEffect(() => {
-      if (gl.info && gl.info.render) {
-        statsRef.current.triangles = gl.info.render.triangles || 0;
-        statsRef.current.drawCalls = gl.info.render.calls || 0;
+      if (gl.info?.render) {
+        if (webGPUState.current.isWebGPU) {
+          statsRef.current.triangles = gl.info.render.triangles || 0;
+          statsRef.current.drawCalls = gl.info.render.calls || 0;
+        } else {
+          statsRef.current.triangles = gl.info.render.triangles || 0;
+          statsRef.current.drawCalls = gl.info.render.calls || 0;
+        }
       }
     });
     
