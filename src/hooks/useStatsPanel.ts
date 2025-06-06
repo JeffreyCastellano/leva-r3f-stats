@@ -101,14 +101,12 @@ export function useStatsPanel(options: StatsOptions = {}) {
     frameTimestamps: [] as number[],
     lastRenderTime: 0,
     
-  
     fpsSmooth: 0,
     msSmooth: 0,
     gpuSmooth: 0,
     cpuSmooth: 0,
     computeSmooth: 0,
     
-
     frameStartTime: 0,
     frameEndTime: 0
   });
@@ -124,7 +122,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, []);
 
-  // FIX: Check for WebGPU first, before trying WebGL extensions
+  // Check for WebGPU first, before trying WebGL extensions
   useEffect(() => {
     if (!gl) return;
 
@@ -141,7 +139,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
         (gl as any).backend.trackTimestamp = true;
       }
       
-      console.warn('WebGPU renderer detected, skipping WebGL extension initialization');
+      console.log('WebGPU renderer detected, skipping WebGL extension initialization');
       return;
     }
 
@@ -161,52 +159,51 @@ export function useStatsPanel(options: StatsOptions = {}) {
         };
       }
     } catch (error) {
-      console.warn('GPU timing init failed:', error);
+      console.debug('GPU timing init failed:', error);
     }
   }, [gl]);
 
-// WebGPU timestamp
+  // Check for WebGPU features
   useEffect(() => {
-    if (!webGPUState.current.isWebGPU) {
-      return;
-    }
-
-    const renderer = get().gl;
-    let intervalId: NodeJS.Timeout;
-
-    const resolveTimestamps = () => {
+    async function checkWebGPU() {
+      const renderer = get().gl;
+      
+      // Only run if we haven't already detected WebGPU
+      if (!webGPUState.current.isWebGPU) {
+        webGPUState.current = {
+          isWebGPU: false,
+          hasTimestampQuery: false
+        };
+      }
+      
       try {
-        if ((renderer as any).info?.render?.timestamp !== undefined) {
-          const gpuTime = (renderer as any).info.render.timestamp;
-          if (typeof gpuTime === 'number' && gpuTime > 0) {
-            statsRef.current.gpu = gpuTime;
-            statsRef.current.gpuAccurate = true;
-            globalBuffers.gpu.push(gpuTime);
+        if (renderer && (renderer as any).isWebGPURenderer) {
+          webGPUState.current.isWebGPU = true;
+          
+          if ((renderer as any).backend) {
+            (renderer as any).backend.trackTimestamp = true;
+            
+            if ((renderer as any).hasFeatureAsync) {
+              try {
+                webGPUState.current.hasTimestampQuery = 
+                  await (renderer as any).hasFeatureAsync('timestamp-query');
+              } catch (e) {
+                webGPUState.current.hasTimestampQuery = false;
+              }
+            }
           }
-        }
-        
-        if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
-          const computeTime = (renderer as any).info.compute.timestamp;
-          if (typeof computeTime === 'number' && computeTime > 0) {
-            statsRef.current.compute = computeTime;
-            globalBuffers.compute.push(computeTime);
-          }
+          
+          statsRef.current.isWebGPU = true;
         }
       } catch (error) {
-        // Silent fail
+        console.debug('WebGPU detection failed:', error);
       }
-    };
+    }
+    
+    checkWebGPU();
+  }, [get]);
 
-    intervalId = setInterval(resolveTimestamps, 100); // Reduced from 250ms
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [get, options?.trackCompute]);
-
- 
+  // Frame timing
   useFrame((state, delta) => {
     const stats = statsRef.current;
     const currentTime = performance.now();
@@ -214,21 +211,17 @@ export function useStatsPanel(options: StatsOptions = {}) {
     stats.frameStartTime = currentTime;
     stats.frameTimestamps.push(currentTime);
 
-
     const oneSecondAgo = currentTime - 1000;
     stats.frameTimestamps = stats.frameTimestamps.filter(t => t > oneSecondAgo);
 
- 
     stats.fps = stats.frameTimestamps.length;
 
- 
     const frameTime = currentTime - stats.prevTime;
     if (frameTime > 0 && frameTime < 100) {
       stats.ms = frameTime;
       globalBuffers.ms.push(frameTime);
     }
 
-    
     if (options?.vsync !== false) {
       stats.vsync = vsyncDetectorRef.current.update(currentTime);
     }
@@ -242,24 +235,21 @@ export function useStatsPanel(options: StatsOptions = {}) {
     stats.prevTime = currentTime;
   });
 
+  // WebGL draw calls and triangles tracking
   useEffect(() => {
-    if (!gl.info) return;
+    if (!gl.info || webGPUState.current.isWebGPU) return;
     
     const unsubscribe = addAfterEffect(() => {
       if (gl.info?.render) {
-        if (webGPUState.current.isWebGPU) {
-          statsRef.current.triangles = gl.info.render.triangles || 0;
-          statsRef.current.drawCalls = gl.info.render.calls || 0;
-        } else {
-          statsRef.current.triangles = gl.info.render.triangles || 0;
-          statsRef.current.drawCalls = gl.info.render.calls || 0;
-        }
+        statsRef.current.triangles = gl.info.render.triangles || 0;
+        statsRef.current.drawCalls = gl.info.render.calls || 0;
       }
     });
     
     return () => unsubscribe();
   }, [gl]);
 
+  // WebGL GPU timing
   useEffect(() => {
     if (!gpuTimingState.current.available || webGPUState.current.isWebGPU) return;
 
@@ -350,64 +340,75 @@ export function useStatsPanel(options: StatsOptions = {}) {
       clearInterval(intervalId);
       endQuery();
     };
-  }, [gl, webGPUState.current.isWebGPU]);
+  }, [gl]);
 
-  // WebGPU timestamp
+  // WebGPU timestamp and stats tracking
   useEffect(() => {
-    if (!webGPUState.current.isWebGPU || !webGPUState.current.hasTimestampQuery) {
+    if (!webGPUState.current.isWebGPU) {
       return;
     }
 
     const renderer = get().gl;
     let intervalId: NodeJS.Timeout;
+    let lastDrawCalls = 0;
+    let lastTriangles = 0;
 
-    const resolveTimestamps = async () => {
+    const resolveTimestamps = () => {
       try {
-        if (typeof (renderer as any).resolveTimestampsAsync === 'function') {
-          const renderTimestamp = await (renderer as any).resolveTimestampsAsync(0);
-          
-          if (renderTimestamp !== undefined && renderTimestamp !== null) {
-            const gpuTime = Number(renderTimestamp);
-            if (!isNaN(gpuTime) && gpuTime > 0) {
-              statsRef.current.gpu = gpuTime;
-              statsRef.current.gpuAccurate = true;
-              globalBuffers.gpu.push(gpuTime);
-            }
-          }
-          
-          if (options?.trackCompute) {
-            const computeTimestamp = await (renderer as any).resolveTimestampsAsync(1);
-            
-            if (computeTimestamp !== undefined && computeTimestamp !== null) {
-              const computeTime = Number(computeTimestamp);
-              if (!isNaN(computeTime) && computeTime > 0) {
-                statsRef.current.compute = computeTime;
-                globalBuffers.compute.push(computeTime);
-              }
-            }
-          }
-        } 
-        else if ((renderer as any).info?.render?.timestamp !== undefined) {
+        // Check if renderer.info exists
+        if (!(renderer as any).info) {
+          console.warn('No renderer.info found');
+          return;
+        }
+
+        // GPU timing
+        if ((renderer as any).info.render?.timestamp !== undefined) {
           const gpuTime = (renderer as any).info.render.timestamp;
           if (typeof gpuTime === 'number' && gpuTime > 0) {
             statsRef.current.gpu = gpuTime;
             statsRef.current.gpuAccurate = true;
             globalBuffers.gpu.push(gpuTime);
           }
-          
-          if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
-            const computeTime = (renderer as any).info.compute.timestamp;
-            if (typeof computeTime === 'number' && computeTime > 0) {
-              statsRef.current.compute = computeTime;
-              globalBuffers.compute.push(computeTime);
-            }
+        }
+        
+        // Compute timing
+        if (options?.trackCompute && (renderer as any).info.compute?.timestamp !== undefined) {
+          const computeTime = (renderer as any).info.compute.timestamp;
+          if (typeof computeTime === 'number' && computeTime > 0) {
+            statsRef.current.compute = computeTime;
+            globalBuffers.compute.push(computeTime);
           }
         }
+
+        // Handle WebGPU draw calls and triangles (they might be cumulative)
+        if ((renderer as any).info.render) {
+          const currentCalls = (renderer as any).info.render.calls || 0;
+          const currentTriangles = (renderer as any).info.render.triangles || 0;
+          
+          // Calculate delta for draw calls
+          if (lastDrawCalls > 0 && currentCalls >= lastDrawCalls) {
+            statsRef.current.drawCalls = currentCalls - lastDrawCalls;
+          } else {
+            statsRef.current.drawCalls = currentCalls;
+          }
+          
+          // Calculate delta for triangles
+          if (lastTriangles > 0 && currentTriangles >= lastTriangles) {
+            statsRef.current.triangles = currentTriangles - lastTriangles;
+          } else {
+            statsRef.current.triangles = currentTriangles;
+          }
+          
+          lastDrawCalls = currentCalls;
+          lastTriangles = currentTriangles;
+        }
       } catch (error) {
+        console.warn('Error reading WebGPU stats:', error);
       }
     };
 
-    intervalId = setInterval(resolveTimestamps, 250);
+    // Check every frame for most accurate results
+    intervalId = setInterval(resolveTimestamps, 16); // ~60fps
 
     return () => {
       if (intervalId) {
@@ -416,6 +417,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, [get, options?.trackCompute]);
 
+  // Update stats store
   useEffect(() => {
     const updateInterval = options?.updateInterval || 100;
 
@@ -456,6 +458,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
     return () => clearInterval(intervalId);
   }, [options?.updateInterval, options?.trackCompute]);
 
+  // Cleanup
   useEffect(() => {
     return () => {
       Object.values(globalBuffers).forEach(buffer => buffer.clear());
@@ -467,6 +470,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
           try {
             context.deleteQuery(gpuTimingState.current.query);
           } catch (error) {
+            // Silent failure
           }
         }
       }
