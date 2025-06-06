@@ -124,12 +124,31 @@ export function useStatsPanel(options: StatsOptions = {}) {
     };
   }, []);
 
+  // FIX: Check for WebGPU first, before trying WebGL extensions
   useEffect(() => {
     if (!gl) return;
 
+    // Check if it's a WebGPU renderer first
+    const isWebGPU = !!(gl && (gl as any).isWebGPURenderer);
+    
+    if (isWebGPU) {
+      // It's WebGPU, don't try to get WebGL extensions
+      webGPUState.current.isWebGPU = true;
+      statsRef.current.isWebGPU = true;
+      
+      // Enable WebGPU timestamp tracking
+      if ((gl as any).backend) {
+        (gl as any).backend.trackTimestamp = true;
+      }
+      
+      console.log('WebGPU renderer detected, skipping WebGL extension initialization');
+      return;
+    }
+
+    // Only try WebGL extensions if it's not WebGPU
     try {
-      const context = gl.getContext() as WebGL2RenderingContext;
-      if (!context) return;
+      const context = gl.getContext();
+      if (!context || typeof context.getExtension !== 'function') return;
 
       const ext = context.getExtension('EXT_disjoint_timer_query_webgl2');
       if (ext) {
@@ -146,15 +165,18 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, [gl]);
 
-
+  // Check for WebGPU features
   useEffect(() => {
     async function checkWebGPU() {
       const renderer = get().gl;
       
-      webGPUState.current = {
-        isWebGPU: false,
-        hasTimestampQuery: false
-      };
+      // Only run if we haven't already detected WebGPU
+      if (!webGPUState.current.isWebGPU) {
+        webGPUState.current = {
+          isWebGPU: false,
+          hasTimestampQuery: false
+        };
+      }
       
       try {
         if (renderer && (renderer as any).isWebGPURenderer) {
@@ -232,8 +254,9 @@ export function useStatsPanel(options: StatsOptions = {}) {
     return () => unsubscribe();
   }, [gl]);
 
+  // FIX: Only run WebGL timing if not WebGPU
   useEffect(() => {
-    if (!gpuTimingState.current.available) return;
+    if (!gpuTimingState.current.available || webGPUState.current.isWebGPU) return;
 
     const checkGPUResults = () => {
       const gpuTiming = gpuTimingState.current;
@@ -322,7 +345,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
       clearInterval(intervalId);
       endQuery();
     };
-  }, [gl]);
+  }, [gl, webGPUState.current.isWebGPU]);
 
   // WebGPU timestamp
   useEffect(() => {
