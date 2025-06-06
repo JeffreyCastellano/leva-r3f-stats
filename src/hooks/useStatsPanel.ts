@@ -141,7 +141,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
         (gl as any).backend.trackTimestamp = true;
       }
       
-      console.log('WebGPU renderer detected, skipping WebGL extension initialization');
+      console.warn('WebGPU renderer detected, skipping WebGL extension initialization');
       return;
     }
 
@@ -161,107 +161,68 @@ export function useStatsPanel(options: StatsOptions = {}) {
         };
       }
     } catch (error) {
-      console.debug('GPU timing init failed:', error);
+      console.warn('GPU timing init failed:', error);
     }
   }, [gl]);
 
 // WebGPU timestamp
-  useEffect(() => {
-    if (!webGPUState.current.isWebGPU) {
-      return;
-    }
+useEffect(() => {
+  if (!webGPUState.current.isWebGPU) {
+    return;
+  }
 
-    const renderer = get().gl;
-    let intervalId: NodeJS.Timeout;
-    let frameCleanupId: any;
+  const renderer = get().gl;
+  let intervalId: NodeJS.Timeout;
+  let frameCleanupId: any;
 
-    // Add frame-based cleanup to prevent query pool overflow
-    const frameCleanup = addAfterEffect(() => {
-      if ((renderer as any).backend?.trackTimestamp) {
-        // Resolve all pending timestamp queries to prevent overflow
-        Promise.resolve().then(async () => {
-          try {
-            await (renderer as any).resolveTimestampsAsync();
-          } catch (e) {
-            // Silent fail - queries might not be ready
-          }
-        });
-      }
-    });
-
-    const resolveTimestamps = async () => {
-      try {
-        // First, clear the query pool
-        if ((renderer as any).backend?.trackTimestamp) {
+  const frameCleanup = addAfterEffect(() => {
+    if ((renderer as any).backend?.trackTimestamp) {
+      Promise.resolve().then(async () => {
+        try {
           await (renderer as any).resolveTimestampsAsync();
+        } catch (e) {
+          console.warn('WebGPU timestamp failure:', e);
         }
+      });
+    }
+  });
 
-        // Then try to read specific timestamps if available
-        if (typeof (renderer as any).resolveTimestampsAsync === 'function') {
-          try {
-            const renderTimestamp = await (renderer as any).resolveTimestampsAsync(0);
-            
-            if (renderTimestamp !== undefined && renderTimestamp !== null) {
-              const gpuTime = Number(renderTimestamp);
-              if (!isNaN(gpuTime) && gpuTime > 0) {
-                statsRef.current.gpu = gpuTime;
-                statsRef.current.gpuAccurate = true;
-                globalBuffers.gpu.push(gpuTime);
-              }
-            }
-          } catch (e) {
-            // Specific timestamp might not be available
-          }
-          
-          if (options?.trackCompute) {
-            try {
-              const computeTimestamp = await (renderer as any).resolveTimestampsAsync(1);
-              
-              if (computeTimestamp !== undefined && computeTimestamp !== null) {
-                const computeTime = Number(computeTimestamp);
-                if (!isNaN(computeTime) && computeTime > 0) {
-                  statsRef.current.compute = computeTime;
-                  globalBuffers.compute.push(computeTime);
-                }
-              }
-            } catch (e) {
-              // Compute timestamp might not be available
-            }
-          }
-        } 
-        else if ((renderer as any).info?.render?.timestamp !== undefined) {
-          const gpuTime = (renderer as any).info.render.timestamp;
-          if (typeof gpuTime === 'number' && gpuTime > 0) {
-            statsRef.current.gpu = gpuTime;
-            statsRef.current.gpuAccurate = true;
-            globalBuffers.gpu.push(gpuTime);
-          }
-          
-          if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
-            const computeTime = (renderer as any).info.compute.timestamp;
-            if (typeof computeTime === 'number' && computeTime > 0) {
-              statsRef.current.compute = computeTime;
-              globalBuffers.compute.push(computeTime);
-            }
+  const resolveTimestamps = async () => {
+    try {
+      // Check if we have the info object with timestamps first
+      if ((renderer as any).info?.render?.timestamp !== undefined) {
+        const gpuTime = (renderer as any).info.render.timestamp;
+        if (typeof gpuTime === 'number' && gpuTime > 0) {
+          statsRef.current.gpu = gpuTime;
+          statsRef.current.gpuAccurate = true;
+          globalBuffers.gpu.push(gpuTime);
+        }
+        
+        if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
+          const computeTime = (renderer as any).info.compute.timestamp;
+          if (typeof computeTime === 'number' && computeTime > 0) {
+            statsRef.current.compute = computeTime;
+            globalBuffers.compute.push(computeTime);
           }
         }
-      } catch (error) {
-        // Silent fail
       }
-    };
+    } catch (error) {
+      console.warn('WebGPU timestamp failure:', error);
+    }
+  };
 
-    intervalId = setInterval(resolveTimestamps, 250);
-    frameCleanupId = frameCleanup;
+  intervalId = setInterval(resolveTimestamps, 250);
+  frameCleanupId = frameCleanup;
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if (frameCleanupId) {
-        frameCleanupId();
-      }
-    };
-  }, [get, options?.trackCompute]); // Remove webGPUState.current.isWebGPU from deps
+  return () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+    if (frameCleanupId) {
+      frameCleanupId();
+    }
+  };
+}, [get, options?.trackCompute]);
 
  
   useFrame((state, delta) => {
@@ -312,7 +273,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
     return () => unsubscribe();
   }, [gl]);
 
-  // FIX: Only run WebGL timing if not WebGPU
   useEffect(() => {
     if (!gpuTimingState.current.available || webGPUState.current.isWebGPU) return;
 
@@ -520,7 +480,6 @@ export function useStatsPanel(options: StatsOptions = {}) {
           try {
             context.deleteQuery(gpuTimingState.current.query);
           } catch (error) {
-            // Silent failure
           }
         }
       }
