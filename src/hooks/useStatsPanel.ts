@@ -165,45 +165,103 @@ export function useStatsPanel(options: StatsOptions = {}) {
     }
   }, [gl]);
 
-  // Check for WebGPU features
+// WebGPU timestamp
   useEffect(() => {
-    async function checkWebGPU() {
-      const renderer = get().gl;
-      
-      // Only run if we haven't already detected WebGPU
-      if (!webGPUState.current.isWebGPU) {
-        webGPUState.current = {
-          isWebGPU: false,
-          hasTimestampQuery: false
-        };
+    if (!webGPUState.current.isWebGPU) {
+      return;
+    }
+
+    const renderer = get().gl;
+    let intervalId: NodeJS.Timeout;
+    let frameCleanupId: any;
+
+    // Add frame-based cleanup to prevent query pool overflow
+    const frameCleanup = addAfterEffect(() => {
+      if ((renderer as any).backend?.trackTimestamp) {
+        // Resolve all pending timestamp queries to prevent overflow
+        Promise.resolve().then(async () => {
+          try {
+            await (renderer as any).resolveTimestampsAsync();
+          } catch (e) {
+            // Silent fail - queries might not be ready
+          }
+        });
       }
-      
+    });
+
+    const resolveTimestamps = async () => {
       try {
-        if (renderer && (renderer as any).isWebGPURenderer) {
-          webGPUState.current.isWebGPU = true;
-          
-          if ((renderer as any).backend) {
-            (renderer as any).backend.trackTimestamp = true;
+        // First, clear the query pool
+        if ((renderer as any).backend?.trackTimestamp) {
+          await (renderer as any).resolveTimestampsAsync();
+        }
+
+        // Then try to read specific timestamps if available
+        if (typeof (renderer as any).resolveTimestampsAsync === 'function') {
+          try {
+            const renderTimestamp = await (renderer as any).resolveTimestampsAsync(0);
             
-            if ((renderer as any).hasFeatureAsync) {
-              try {
-                webGPUState.current.hasTimestampQuery = 
-                  await (renderer as any).hasFeatureAsync('timestamp-query');
-              } catch (e) {
-                webGPUState.current.hasTimestampQuery = false;
+            if (renderTimestamp !== undefined && renderTimestamp !== null) {
+              const gpuTime = Number(renderTimestamp);
+              if (!isNaN(gpuTime) && gpuTime > 0) {
+                statsRef.current.gpu = gpuTime;
+                statsRef.current.gpuAccurate = true;
+                globalBuffers.gpu.push(gpuTime);
               }
             }
+          } catch (e) {
+            // Specific timestamp might not be available
           }
           
-          statsRef.current.isWebGPU = true;
+          if (options?.trackCompute) {
+            try {
+              const computeTimestamp = await (renderer as any).resolveTimestampsAsync(1);
+              
+              if (computeTimestamp !== undefined && computeTimestamp !== null) {
+                const computeTime = Number(computeTimestamp);
+                if (!isNaN(computeTime) && computeTime > 0) {
+                  statsRef.current.compute = computeTime;
+                  globalBuffers.compute.push(computeTime);
+                }
+              }
+            } catch (e) {
+              // Compute timestamp might not be available
+            }
+          }
+        } 
+        else if ((renderer as any).info?.render?.timestamp !== undefined) {
+          const gpuTime = (renderer as any).info.render.timestamp;
+          if (typeof gpuTime === 'number' && gpuTime > 0) {
+            statsRef.current.gpu = gpuTime;
+            statsRef.current.gpuAccurate = true;
+            globalBuffers.gpu.push(gpuTime);
+          }
+          
+          if (options?.trackCompute && (renderer as any).info?.compute?.timestamp !== undefined) {
+            const computeTime = (renderer as any).info.compute.timestamp;
+            if (typeof computeTime === 'number' && computeTime > 0) {
+              statsRef.current.compute = computeTime;
+              globalBuffers.compute.push(computeTime);
+            }
+          }
         }
       } catch (error) {
-        console.debug('WebGPU detection failed:', error);
+        // Silent fail
       }
-    }
-    
-    checkWebGPU();
-  }, [get]);
+    };
+
+    intervalId = setInterval(resolveTimestamps, 250);
+    frameCleanupId = frameCleanup;
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (frameCleanupId) {
+        frameCleanupId();
+      }
+    };
+  }, [get, options?.trackCompute]); // Remove webGPUState.current.isWebGPU from deps
 
  
   useFrame((state, delta) => {
