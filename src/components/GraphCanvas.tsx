@@ -1,3 +1,4 @@
+// src/components/GraphCanvas.tsx
 import { useRef, useEffect } from 'react';
 import { RingBuffer } from '../utils/RingBuffer';
 import { styles } from '../styles/styled';
@@ -56,25 +57,28 @@ export function GraphCanvas({ data, color, min, max, height, label, unit, curren
       
       ctx.setLineDash([]);
 
-      // Draw data using full height
-      const values = data.getData();
-      if (values.length > 0) {
+      // Draw data without creating arrays
+      const count = data.getCount();
+      if (count > 0) {
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
 
         const step = width / (data.size - 1);
-        for (let i = 0; i < values.length; i++) {
+        let firstPoint = true;
+        
+        data.forEachValue((value, i) => {
           const x = i * step;
-          const normalized = Math.max(0, Math.min(1, (values[i] - min) / (max - min)));
+          const normalized = Math.max(0, Math.min(1, (value - min) / (max - min)));
           const y = height - (normalized * height);
           
-          if (i === 0) {
+          if (firstPoint) {
             ctx.moveTo(x, y);
+            firstPoint = false;
           } else {
             ctx.lineTo(x, y);
           }
-        }
+        });
         
         ctx.stroke();
       }

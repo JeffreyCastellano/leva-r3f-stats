@@ -36,6 +36,7 @@ export function useStatsPanel(options: StatsOptions = {}) {
   const get = useThree(state => state.get);
 
   const controlKey = useRef(`Performance_${Math.random().toString(36).substr(2, 9)}`);
+  const createdQueries = useRef<WebGLQuery[]>([]);
   
   const folderSettings = options.folder 
     ? typeof options.folder === 'string' 
@@ -293,9 +294,11 @@ useEffect(() => {
         try {
           const disjoint = gl2.getParameter(gpuTiming.ext.GPU_DISJOINT_EXT);
           if (!disjoint) {
-            gpuTiming.query = gl2.createQuery();
-            if (gpuTiming.query) {
-              gl2.beginQuery(gpuTiming.ext.TIME_ELAPSED_EXT, gpuTiming.query);
+            const query = gl2.createQuery();
+            if (query) {
+              createdQueries.current.push(query);
+              gpuTiming.query = query;
+              gl2.beginQuery(gpuTiming.ext.TIME_ELAPSED_EXT, query);
               gpuTiming.queryInProgress = true;
             }
           } else {
@@ -333,6 +336,12 @@ useEffect(() => {
               console.debug('GPU disjoint detected during result read');
             }
             
+            // Remove from tracked queries
+            const queryIndex = createdQueries.current.indexOf(gpuTiming.query);
+            if (queryIndex > -1) {
+              createdQueries.current.splice(queryIndex, 1);
+            }
+            
             gl2.deleteQuery(gpuTiming.query);
             gpuTiming.query = null;
             gpuTiming.queryInProgress = false;
@@ -341,6 +350,11 @@ useEffect(() => {
           console.debug('GPU query check failed:', error);
           if (gpuTiming.query) {
             try {
+              // Remove from tracked queries
+              const queryIndex = createdQueries.current.indexOf(gpuTiming.query);
+              if (queryIndex > -1) {
+                createdQueries.current.splice(queryIndex, 1);
+              }
               gl2.deleteQuery(gpuTiming.query);
             } catch (e) {
             }
@@ -481,23 +495,46 @@ useEffect(() => {
     return () => clearInterval(intervalId);
   }, [options?.updateInterval, options?.trackCompute]);
 
+  // Comprehensive cleanup effect
   useEffect(() => {
     return () => {
+      // Clear all global buffers
       Object.values(globalBuffers).forEach(buffer => buffer.clear());
+      
+      // Reset the stats store
       statsStore.reset();
       
-      if (gpuTimingState.current.query) {
-        const context = gl.getContext() as WebGL2RenderingContext;
-        if (context && context.deleteQuery) {
+      // Clean up all WebGL queries
+      const context = gl.getContext() as WebGL2RenderingContext;
+      if (context && context.deleteQuery) {
+        // Delete current query if exists
+        if (gpuTimingState.current.query) {
           try {
             context.deleteQuery(gpuTimingState.current.query);
           } catch (error) {
             // Silent failure
           }
         }
+        
+        // Delete all tracked queries
+        createdQueries.current.forEach(query => {
+          try {
+            context.deleteQuery(query);
+          } catch (error) {
+            // Silent failure
+          }
+        });
+        
+        createdQueries.current = [];
       }
+      
+      // Clear frame timestamps
+      statsRef.current.frameTimestamps = [];
+      
+      // Reset vsync detector
+      vsyncDetectorRef.current = new VSyncDetector(options?.vsync !== false);
     };
-  }, [gl]);
+  }, [gl, options?.vsync]);
 
   return null;
 }

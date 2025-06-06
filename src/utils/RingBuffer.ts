@@ -1,3 +1,4 @@
+// src/utils/RingBuffer.ts
 export class RingBuffer {
   private buffer: Float32Array;
   private pointer: number = 0;
@@ -63,6 +64,28 @@ export class RingBuffer {
       result[i] = this.buffer[(this.pointer + i) % this.size];
     }
     return result;
+  }
+
+  forEachValue(callback: (value: number, index: number) => void): void {
+    const count = this.filled ? this.size : this.pointer;
+    if (count === 0) return;
+
+    if (!this.filled) {
+      // Data is contiguous from 0 to pointer
+      for (let i = 0; i < count; i++) {
+        callback(this.buffer[i], i);
+      }
+    } else {
+      // Data wraps around, start from oldest (pointer position)
+      for (let i = 0; i < count; i++) {
+        const bufferIndex = (this.pointer + i) % this.size;
+        callback(this.buffer[bufferIndex], i);
+      }
+    }
+  }
+
+  getCount(): number {
+    return this.filled ? this.size : this.pointer;
   }
 
   clear(): void {
