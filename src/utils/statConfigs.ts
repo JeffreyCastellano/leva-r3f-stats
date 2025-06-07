@@ -1,4 +1,3 @@
-// src/utils/statConfigs.ts
 import { StatConfig, StatsOptions, Thresholds } from '../types';
 import { unifiedStore } from '../store/unifiedStore';
 
@@ -74,7 +73,7 @@ export function createStatConfigs(options: StatsOptions, thresholds: Thresholds 
       
       let color = undefined;
       let graphMax = 100;
-      let labelSuffix = undefined; // New field for suffix
+      let labelSuffix = undefined;
       
       switch (statKey) {
         case 'fps':
@@ -110,8 +109,8 @@ export function createStatConfigs(options: StatsOptions, thresholds: Thresholds 
       
       return {
         key: statKey,
-        label: label, // Just the main label now
-        labelSuffix, // Separate suffix
+        label: label,
+        labelSuffix,
         shortLabel: label,
         unit: statKey === 'memory' ? 'MB' : statKey === 'vsync' ? 'Hz' : '',
         format: FORMATS[statKey],

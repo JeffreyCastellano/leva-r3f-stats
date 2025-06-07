@@ -1,4 +1,3 @@
-// src/components/GraphCanvas.tsx
 import { useRef, useEffect, useMemo } from 'react';
 import { RingBuffer } from '../utils/buffer';
 
@@ -40,7 +39,6 @@ export function GraphCanvas({
   const displayLabel = showFullLabel && fullLabel ? fullLabel : label;
   const formattedValue = `${currentValue.toFixed(1)}${unit}`;
 
-  // Create dashed line SVG pattern
   const dashedGridPattern = useMemo(() => {
     const dashLength = 3;
     const gapLength = 3;
@@ -49,7 +47,6 @@ export function GraphCanvas({
     return `url("data:image/svg+xml,%3Csvg width='${dashLength + gapLength}' height='${height}' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='${height/2}' x2='${dashLength}' y2='${height/2}' stroke='${encodeURIComponent(gridColor)}' stroke-width='${strokeWidth}'/%3E%3C/svg%3E")`;
   }, [gridColor, height]);
 
-  // Memoize styles
   const styles = useMemo(() => ({
     container: {
       position: 'relative' as const,

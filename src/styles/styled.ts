@@ -114,6 +114,5 @@ export const styles = {
   canvas: {
     display: 'block',
     width: '100%',
-    //imageRendering: 'pixelated' as const,
   },
 };

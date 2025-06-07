@@ -1,4 +1,3 @@
-// ModularDisplay.tsx - Pass budgets to threshold calculation
 import { useMemo } from 'react';
 import { StatsData, StatsOptions } from '../types';
 import { createStatConfigs, getVisibleConfigs } from '../utils/statConfigs';
@@ -13,12 +12,10 @@ interface ModularDisplayProps {
 }
 
 export function ModularDisplay({ stats, options }: ModularDisplayProps) {
-  // Memoize target FPS calculation
   const targetFPS = useMemo(() => {
     return options.targetFramerate || getTargetFrameRate(stats.vsync);
   }, [options.targetFramerate, stats.vsync]);
 
-  // Memoize thresholds calculation with budgets
   const thresholds = useMemo(() => {
     return calculateThresholds(
       targetFPS, 
@@ -27,13 +24,10 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
     );
   }, [targetFPS, options.trianglesBudget, options.drawCallsBudget]);
 
-  // Memoize stat configs creation
   const allConfigs = useMemo(() => {
     return createStatConfigs(options, thresholds);
   }, [options, thresholds]);
 
-  // Rest of the component remains the same...
-  // Memoize graph options to prevent recreation
   const graphOptions = useMemo(() => {
     if (!options.graphHeight || options.graphHeight <= 0) {
       return null;
@@ -58,9 +52,7 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
     options.drawCallsBudget
   ]);
 
-  // Graph mode
   if (graphOptions) {
-    // Get visible configs for graph mode - always use full configs
     const graphConfigs = useMemo(() => {
       return getVisibleConfigs(allConfigs, stats, false);
     }, [allConfigs, stats]);
@@ -75,7 +67,6 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
     );
   }
 
-  // Text mode - get visible configs based on compact mode
   const visibleConfigs = useMemo(() => {
     return getVisibleConfigs(allConfigs, stats, options.compact);
   }, [allConfigs, stats, options.compact]);

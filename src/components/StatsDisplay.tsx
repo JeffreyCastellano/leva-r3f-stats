@@ -1,4 +1,3 @@
-// src/components/StatsDisplay.tsx
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useInputContext } from 'leva/plugin';
 import { unifiedStore } from '../store/unifiedStore';

@@ -1,4 +1,3 @@
-// CompactRenderer.tsx - Fixed version
 import { StatsData, StatsOptions, StatConfig } from '../../types';
 import { styles } from '../../styles/styled';
 
@@ -16,7 +15,6 @@ export function CompactRenderer({ stats, options, configs }: CompactRendererProp
   return (
     <div style={styles.statsCompactWrapper(validColumns, fontSize)}>
       {configs.map(config => {
-        // Get fresh value from stats
         const value = stats[config.key] as number;
         
         if (value === undefined || value === null || Number.isNaN(value)) {

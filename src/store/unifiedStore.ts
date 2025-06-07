@@ -1,4 +1,3 @@
-// src/store/unifiedStore.ts
 import { StatsData } from '../types';
 import { RingBuffer } from '../utils/buffer';
 
@@ -64,7 +63,6 @@ class UnifiedStore {
   }
 
   private flushUpdates(): void {
-    // Update peaks
     if (this.pendingUpdates.triangles !== undefined && 
         this.pendingUpdates.triangles > this.peaks.triangles) {
       this.peaks.triangles = this.pendingUpdates.triangles;
@@ -74,17 +72,14 @@ class UnifiedStore {
       this.peaks.drawCalls = this.pendingUpdates.drawCalls;
     }
 
-    // Apply updates
     this.data = { ...this.data, ...this.pendingUpdates };
     
-    // Update buffers for numeric values
     Object.entries(this.pendingUpdates).forEach(([key, value]) => {
       if (key in this.buffers && typeof value === 'number') {
         this.buffers[key as BufferKey].push(value);
       }
     });
     
-    // Notify listeners
     this.listeners.forEach(listener => {
       try {
         listener(this.data);
@@ -157,7 +152,6 @@ class UnifiedStore {
 
 export const unifiedStore = new UnifiedStore();
 
-// Export compatibility APIs
 export const statsStore = {
   subscribe: (fn: StatsListener) => unifiedStore.subscribe(fn),
   update: (data: Partial<StatsData>) => unifiedStore.update(data),
@@ -176,7 +170,6 @@ export const updateBufferSize = (size: number) => unifiedStore.resizeBuffers(siz
 export const registerInstance = () => unifiedStore.registerInstance();
 export const getInstanceCount = () => unifiedStore.getInstanceCount();
 
-// Stub for compatibility
 export function createInstanceBuffers(size: number) {
   if(!size){}
   return {

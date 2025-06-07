@@ -1,4 +1,3 @@
-// src/components/renderers/GridRenderer.tsx
 import { StatsData, StatsOptions, StatConfig } from '../../types';
 import { unifiedStore } from '../../store/unifiedStore';
 import { styles } from '../../styles/styled';

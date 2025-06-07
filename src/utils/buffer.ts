@@ -1,4 +1,3 @@
-// src/utils/buffer.ts
 export class RingBuffer {
   private buffer: Float32Array;
   private pointer: number = 0;
@@ -15,7 +14,6 @@ export class RingBuffer {
   }
 
   push(value: number): void {
-    // Update min/max/sum incrementally
     if (this.filled) {
       const oldValue = this.buffer[this.pointer];
       this.sum -= oldValue;
@@ -57,7 +55,6 @@ export class RingBuffer {
     this.max = -Infinity;
     this.sum = 0;
     
-    // Copy most recent data
     const copyCount = Math.min(oldData.length, newSize);
     const startIdx = Math.max(0, oldData.length - copyCount);
     for (let i = 0; i < copyCount; i++) {
@@ -78,7 +75,6 @@ export class RingBuffer {
       return this.buffer.slice(0, this.pointer);
     }
     
-    // Reorder circular buffer
     const result = new Float32Array(this.size);
     for (let i = 0; i < this.size; i++) {
       result[i] = this.buffer[(this.pointer + i) % this.size];
@@ -114,13 +110,11 @@ export class RingBuffer {
     this.count = 0;
   }
 
-  // Add destroy method for compatibility
   destroy(): void {
     this.clear();
   }
 }
 
-// Export pool stats stub for compatibility
 export const getPoolStats = () => ({ 
   arrayCount: 0, 
   memoryUsage: 0, 

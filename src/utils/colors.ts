@@ -1,4 +1,3 @@
-// colors.ts - Enhanced with geometry budget colors
 import { Thresholds } from '../types';
 
 export const getStatColor = (
