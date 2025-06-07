@@ -133,6 +133,7 @@ export function getVisibleConfigs(
     if (compact && !config.showInCompact) return false;
     if (config.key === 'compute' && (!stats.isWebGPU || stats.compute === 0)) return false;
     if (config.key === 'vsync' && !stats.vsync) return false;
+    if (config.key === 'cpu' && !stats.gpuAccurate) return false;
     return true;
   });
 }

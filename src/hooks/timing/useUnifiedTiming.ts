@@ -25,6 +25,8 @@ class GeometryAccumulator {
   }
 }
 
+
+
 export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions) {
   const gl = useThree(state => state.gl);
   const frameCount = useRef(0);
@@ -188,6 +190,8 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         }
       }
     };
+
+    
     
     const endQuery = addAfterEffect(() => {
       if (queryInProgress && gpuQuery && !isWebGPU) {
@@ -265,7 +269,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         ms: stats.ms,
         memory: stats.memory,
         gpu: stats.gpu,
-        cpu: stats.ms * 0.7, // Estimate CPU time
+        cpu: stats.gpuAccurate ? Math.max(0, stats.ms - stats.gpu) : 0,
         compute: stats.compute,
         triangles: stats.triangles,
         drawCalls: stats.drawCalls,
