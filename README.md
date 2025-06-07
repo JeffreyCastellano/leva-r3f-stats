@@ -332,7 +332,7 @@ useStatsPanel({
 ```
 
 With showFullLabels: true, graphs display additional context:
-```json
+```jsx
 FPS: "FPS (target: 60)"
 MS: "MS (target: 16.7)"
 Triangles: "TRI (peak: 1.2M)"
@@ -505,10 +505,8 @@ The library uses WebGL2's timer query extension for accurate GPU measurements:
 For Three.js WebGPU renderer:
 
 1. Detects WebGPU renderer automatically
-2. Enables timestamp tracking
-3. Resolves timestamps asynchronously
-4. Tracks both render and compute passes
-5. Zero configuration required
+3. Attempts timestamps asynchronously
+4. Tracks both render and compute passes and with helpers
 
 ### Performance Optimizations
 - **Ring Buffers**: Fixed-size circular buffers prevent memory growth
@@ -596,51 +594,6 @@ function Scene() {
 }
 ```
 
-### Conditional Rendering
-```jsx
-const SHOW_STATS = process.env.NODE_ENV === 'development' || 
-                   new URLSearchParams(window.location.search).has('stats');
-
-function Scene() {
-  if (SHOW_STATS) {
-    useStatsPanel({
-      compact: false,
-      targetFramerate: 60
-    });
-  }
-  
-  // Your scene...
-}
-```
-
-## API Reference
-
-### useStatsPanel(options?)
-The main hook for adding stats to your scene.
-
-**Parameters:**
-- `options` (optional): StatsOptions configuration object
-
-**Returns:**
-- `null` - The hook handles everything internally
-
-**Usage:**
-Must be called inside a component that's within the R3F Canvas.
-
-### stats(options?)
-Leva plugin function for manual control integration.
-
-```jsx
-import { useControls } from 'leva';
-import { stats } from 'leva-r3f-stats';
-
-function Scene() {
-  useControls({
-    'Performance': stats({ compact: true })
-  });
-}
-```
-
 ## Performance Tips
 This plugin does its best to give you as many options as possible and is meant mostly for development. Updating values in React will always be less performant than other canvas based methods. That said there are a few things you can do to help performance...
 
@@ -673,27 +626,13 @@ This plugin does its best to give you as many options as possible and is meant m
    useStatsPanel({ showMinMax: false });
 ```
 
-5. **Conditional Loading**
-```jsx
-   const StatsPanel = lazy(() => import('leva-r3f-stats'));
-```
-
 ### Performance Impact
 Typical roughly tested overhead on modern hardware:
 - CPU: <0.5% additional usage
 - Memory: ~200KB including buffers
 - GPU: Negligible (timer queries are async)
-- Network: None (fully client-side)
 
 ## Troubleshooting
-
-### Common Issues
-
-**Stats not showing**
-- Ensure hook is called inside Canvas component
-- Check that Leva is rendered in your app
-- Verify peer dependencies are installed
-- Check browser console for errors
 
 **GPU timing shows 0 or N/A**
 - GPU timing requires WebGL2 context
@@ -709,45 +648,26 @@ Typical roughly tested overhead on modern hardware:
 **Colors not working**
 - Ensure `showColors: true` (default)
 - Check if `defaultColor` is overriding
-- Verify target framerate is set correctly
 
 **Graph mode not displaying**
 - Set `graphHeight` to value > 0
-- Check Canvas 2D context support
 - Ensure sufficient panel width
 
-**VSync detection failing**
-- Requires stable frame timing
-- May not work with irregular workloads
-- Disable with `vsync: false` if problematic
-
-### Debug Mode
-Hacky, I know...
-```jsx
-// Enable verbose logging
-if (process.env.NODE_ENV === 'development') {
-  window.LEVA_R3F_STATS_DEBUG = true;
-}
-```
 ## Acknowledgments
-- Built for @react-three/fiber
-- UI powered by Leva
+- Built for @react-three/fiber and Leva
 - Stats-Gl [https://github.com/RenaudRohlinger/stats-gl/]
 - Stats.js [https://github.com/mrdoob/stats.js]
 - R3F Perf [https://github.com/utsuboco/r3f-perf]
 - GameStats [https://github.com/ErikSom/gamestats]
 
-
 ## Future Considerations
 
-- [ ] Better GPU timing measurement
-- [ ] Custom monitoring events like in GameStats
+- [ ] Better GPU timing
+- [ ] Easy event monitoring
 - [ ] WASM monitoring
-- [ ] Full non-expermental WebGPU compute tracking
-- [ ] Headless & Traditional Canvas Mode outside of plugin
-- [ ] Full Performance report as in R3F Perf
-- [ ] Performance alerts
-- [ ] Real-time network performance monitoring
+- [ ] Better WebGPU compute tracking
+- [ ] Relevant reporting
+- [ ] Network monitoring
 
 ## License
 MIT © Jeffrey Castellano  

@@ -124,6 +124,7 @@ export function createStatConfigs(options: StatsOptions, thresholds: Thresholds 
     })
     .sort((a, b) => a.order - b.order);
 }
+
 export function getVisibleConfigs(
   configs: StatConfig[], 
   stats: any, 
@@ -133,7 +134,7 @@ export function getVisibleConfigs(
     if (compact && !config.showInCompact) return false;
     if (config.key === 'compute' && (!stats.isWebGPU || stats.compute === 0)) return false;
     if (config.key === 'vsync' && !stats.vsync) return false;
-    if (config.key === 'cpu' && !stats.gpuAccurate) return false;
+    if (config.key === 'cpu' && !stats.gpuAccurate) return false; // Hide CPU when no accurate GPU timing
     return true;
   });
 }

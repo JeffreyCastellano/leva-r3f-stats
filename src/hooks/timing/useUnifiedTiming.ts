@@ -25,8 +25,6 @@ class GeometryAccumulator {
   }
 }
 
-
-
 export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions) {
   const gl = useThree(state => state.gl);
   const frameCount = useRef(0);
@@ -38,6 +36,13 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const frameAccumulator = useRef(new GeometryAccumulator());
   const peakStats = useRef(new GeometryAccumulator());
   const originalUpdate = useRef<any>(null);
+  
+  // Add WebGPU-specific tracking
+  const webGPUFrameStats = useRef({
+    frameTriangles: 0,
+    frameDrawCalls: 0,
+    originalRender: null as any
+  });
   
   const isWebGPU = !!(gl && (gl as any).isWebGPURenderer);
   refs.webGPUState.current.isWebGPU = isWebGPU;
@@ -69,8 +74,6 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       //@ts-ignore
       stats.memory = Math.round(window.performance.memory.usedJSHeapSize / 1048576);
     }
-    
-    //  let the geometry tracking handle it
   });
 
   useEffect(() => {
@@ -113,6 +116,32 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       }
     }
     
+    // NEW: WebGPU frame-based tracking
+    if (isWebGPU && (gl as any).render) {
+      webGPUFrameStats.current.originalRender = (gl as any).render.bind(gl);
+      
+      (gl as any).render = function(...args: any[]) {
+        const info = (gl as any).info;
+        const startTriangles = info?.render?.triangles || 0;
+        const startCalls = info?.render?.calls || 0;
+        
+        // Call original render
+        const result = webGPUFrameStats.current.originalRender.apply(this, args);
+        
+        // Calculate frame stats after render
+        if (info?.render) {
+          const endTriangles = info.render.triangles || 0;
+          const endCalls = info.render.calls || 0;
+          
+          // Always update, even if 0 (empty scene)
+          webGPUFrameStats.current.frameTriangles = endTriangles - startTriangles;
+          webGPUFrameStats.current.frameDrawCalls = endCalls - startCalls;
+        }
+        
+        return result;
+      };
+    }
+    
     const checkGPU = () => {
       if (!mounted) return;
       
@@ -121,33 +150,19 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         if (info?.render?.timestamp) {
           refs.stats.current.gpu = info.render.timestamp;
           refs.stats.current.gpuAccurate = true;
+        } else {
+          refs.stats.current.gpuAccurate = false;
         }
         
         if (options.trackCompute && info?.compute?.timestamp) {
           refs.stats.current.compute = info.compute.timestamp;
         }
 
-        if (info?.render) {
-          const currentCalls = info.render.calls || 0;
-          const currentTriangles = info.render.triangles || 0;
-          const last = lastWebGPUStats.current;
-          
-          if (last.drawCalls > 0 && currentCalls >= last.drawCalls) {
-            refs.stats.current.drawCalls = currentCalls - last.drawCalls;
-          } else {
-            refs.stats.current.drawCalls = currentCalls;
-          }
-          
-          if (last.triangles > 0 && currentTriangles >= last.triangles) {
-            refs.stats.current.triangles = currentTriangles - last.triangles;
-          } else {
-            refs.stats.current.triangles = currentTriangles;
-          }
-          
-          last.drawCalls = currentCalls;
-          last.triangles = currentTriangles;
-        }
+        // CHANGED: Always update triangles and draw calls (removed the if > 0 check)
+        refs.stats.current.triangles = webGPUFrameStats.current.frameTriangles;
+        refs.stats.current.drawCalls = webGPUFrameStats.current.frameDrawCalls;
       } else {
+        // WebGL GPU timing code
         const gl2 = gl.getContext() as WebGL2RenderingContext;
         if (!gl2) return;
         
@@ -164,7 +179,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
               }
             }
           } catch (e) {
-            // Context might be lost
+            refs.stats.current.gpuAccurate = false;
           }
         }
         
@@ -181,6 +196,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
               queryInProgress = false;
             }
           } catch (e) {
+            refs.stats.current.gpuAccurate = false;
             if (gpuQuery) {
               try { gl2.deleteQuery(gpuQuery); } catch {}
               gpuQuery = null;
@@ -190,8 +206,6 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         }
       }
     };
-
-    
     
     const endQuery = addAfterEffect(() => {
       if (queryInProgress && gpuQuery && !isWebGPU) {
@@ -207,18 +221,16 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       if (!isWebGPU && (gl as any).info) {
         if (options.aggressiveCount) {
           const accumulator = frameAccumulator.current;
-          if (accumulator.hasData()) {
-            refs.stats.current.triangles = accumulator.triangles;
-            refs.stats.current.drawCalls = accumulator.drawCalls;
-            accumulator.reset();
-          }
+          // CHANGED: Always update, removed hasData() check
+          refs.stats.current.triangles = accumulator.triangles;
+          refs.stats.current.drawCalls = accumulator.drawCalls;
+          accumulator.reset();
         } else {
           const peak = peakStats.current;
-          if (peak.triangles > 0 || peak.drawCalls > 0) {
-            refs.stats.current.triangles = peak.triangles;
-            refs.stats.current.drawCalls = peak.drawCalls;
-            peak.reset();
-          }
+          // CHANGED: Always update, removed > 0 check
+          refs.stats.current.triangles = peak.triangles;
+          refs.stats.current.drawCalls = peak.drawCalls;
+          peak.reset();
         }
       }
     });
@@ -233,6 +245,12 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       if (!isWebGPU && originalUpdate.current && (gl as any).info) {
         (gl as any).info.update = originalUpdate.current;
         originalUpdate.current = null;
+      }
+      
+      // NEW: Restore WebGPU render method
+      if (isWebGPU && webGPUFrameStats.current.originalRender) {
+        (gl as any).render = webGPUFrameStats.current.originalRender;
+        webGPUFrameStats.current.originalRender = null;
       }
       
       frameAccumulator.current.reset();
@@ -264,12 +282,15 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       lastUpdate = now;
       const stats = refs.stats.current;
       
+      // CHANGED: Calculate CPU time only when GPU timing is accurate
+      const cpuTime = stats.gpuAccurate ? Math.max(0, stats.ms - stats.gpu) : 0;
+      
       unifiedStore.update({
         fps: stats.fps,
         ms: stats.ms,
         memory: stats.memory,
         gpu: stats.gpu,
-        cpu: stats.gpuAccurate ? Math.max(0, stats.ms - stats.gpu) : 0,
+        cpu: cpuTime,  // Only accurate when GPU timing is available
         compute: stats.compute,
         triangles: stats.triangles,
         drawCalls: stats.drawCalls,
