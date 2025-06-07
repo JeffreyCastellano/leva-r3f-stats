@@ -15,7 +15,7 @@ A small Leva plugin to efficiently display React Three Fiber stats
 - **Frame Time (MS)** - Monitor render performance with target-based warnings
 - **Memory Usage** - Track heap memory consumption with automatic unit formatting (MB/GB)
 - **GPU Time** - WebGL2 timer queries for accurate GPU measurements
-- **CPU Time** - Frame processing time estimation
+- **CPU Time** - Frame processing time estimation, requires GPU measurement
 - **Triangle & Draw Calls** - Monitor scene complexity and rendering efficiency
 
 ### 🎯 Smart Target Detection
