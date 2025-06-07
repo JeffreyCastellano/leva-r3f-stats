@@ -33,7 +33,8 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const lastFrameTime = useRef(0);
   const avgFrameTime = useRef(16.67);
   const vsyncDetector = useRef(new VSyncDetector(options.vsync !== false));
-  
+  const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
+
   // Geometry tracking refs
   const frameAccumulator = useRef(new GeometryAccumulator());
   const peakStats = useRef(new GeometryAccumulator());
@@ -141,8 +142,26 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
 
         // WebGPU geometry stats
         if (info?.render) {
-          refs.stats.current.triangles = info.render.triangles || 0;
-          refs.stats.current.drawCalls = info.render.calls || 0;
+          const currentCalls = info.render.calls || 0;
+          const currentTriangles = info.render.triangles || 0;
+          const last = lastWebGPUStats.current;
+          
+          // WebGPU accumulates, so we need deltas
+          if (last.drawCalls > 0 && currentCalls >= last.drawCalls) {
+            refs.stats.current.drawCalls = currentCalls - last.drawCalls;
+          } else {
+            refs.stats.current.drawCalls = currentCalls;
+          }
+          
+          if (last.triangles > 0 && currentTriangles >= last.triangles) {
+            refs.stats.current.triangles = currentTriangles - last.triangles;
+          } else {
+            refs.stats.current.triangles = currentTriangles;
+          }
+          
+          // Update last values for next frame
+          last.drawCalls = currentCalls;
+          last.triangles = currentTriangles;
         }
       } else {
         // WebGL GPU timing

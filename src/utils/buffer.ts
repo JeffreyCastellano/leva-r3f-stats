@@ -100,8 +100,8 @@ export class RingBuffer {
     }
   }
 
-  getMin(): number { return this.count > 0 ? this.min : 0; }
-  getMax(): number { return this.count > 0 ? this.max : 0; }
+  getMin(): number { return this.count > 0 && isFinite(this.min) ? this.min : 0; }  
+  getMax(): number { return this.count > 0 && isFinite(this.max) ? this.max : 0; }
   getAverage(): number { return this.count > 0 ? this.sum / this.count : 0; }
   getCount(): number { return this.count; }
 

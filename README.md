@@ -4,6 +4,8 @@ A small Leva plugin to efficiently display React Three Fiber stats
 [![npm version](https://img.shields.io/npm/v/leva-r3f-stats.svg)](https://www.npmjs.com/package/leva-r3f-stats)
 [![storybook](https://img.shields.io/badge/storybook-live-ff4785.svg)](https://JeffreyCastellano.github.io/leva-r3f-stats)
 
+![Big Header](examples/img/hero.gif)
+
 [**Live Demo**](https://JeffreyCastellano.github.io/leva-r3f-stats)
 
 ## Features
