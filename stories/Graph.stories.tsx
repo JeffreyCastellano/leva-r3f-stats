@@ -144,7 +144,7 @@ const meta: Meta<StoryArgs> = {
       description: 'Number of animated meshes'
     },
     fontSize: {
-      control: { type: 'range', min: 8, max: 16, step: 1 },
+      control: { type: 'range', min: 6, max: 16, step: 1 },
       description: 'Font size for stats display'
     },
     showFPS: { control: 'boolean', description: 'Show FPS graph' },

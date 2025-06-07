@@ -21,7 +21,6 @@ export function stats(options: StatsOptions = {}): ReturnType<typeof statsPlugin
     graphHistory: 100,
     columns: undefined,
     columnsCompact: undefined,
-    columnsGraph: undefined,
     fontSize: undefined,
     aggressiveCount: false,
     stats: {

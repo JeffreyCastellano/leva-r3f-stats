@@ -240,7 +240,6 @@ function StoryComponent(args: StoryArgs) {
         <Scene key={sceneKey} args={args} />
       </Canvas>
       
-      {/* Info panel */}
       <div style={{
         position: 'absolute',
         bottom: 20,

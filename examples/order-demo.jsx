@@ -1,4 +1,3 @@
-// examples/compact-demo.tsx
 import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Torus, Box, Sphere } from '@react-three/drei';
@@ -39,7 +38,7 @@ function Scene() {
     vsync
   } = useControls('Stats Options', {
     compact: { value: true },
-    fontSize: { value: 10, min: 8, max: 16, step: 1 },
+    fontSize: { value: 10, min: 6, max: 16, step: 1 },
     columns: { value: 4, min: 1, max: 8, step: 1 },
     showColors: { value: true },
     vsync: { value: true }

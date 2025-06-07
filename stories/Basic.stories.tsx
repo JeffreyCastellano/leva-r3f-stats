@@ -1,4 +1,3 @@
-// Basic.stories.tsx
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Canvas } from '@react-three/fiber';
@@ -13,9 +12,11 @@ interface StoryArgs {
   defaultColor: string;
   showMinMax: boolean;
   vsync: boolean;
+  trackCompute: boolean;
   order: number;
   fontSize: number;
-  // Stat visibility and ordering
+  graphHeight: number;
+  compact: boolean;
   showFPS: boolean;
   orderFPS: number;
   showMS: boolean;
@@ -26,6 +27,14 @@ interface StoryArgs {
   orderGPU: number;
   showCPU: boolean;
   orderCPU: number;
+  showCompute: boolean;
+  orderCompute: number;
+  showTriangles: boolean;
+  orderTriangles: number;
+  showDrawCalls: boolean;
+  orderDrawCalls: number;
+  showVSync: boolean;
+  orderVSync: number;
 }
 
 function Scene({ args }: { args: StoryArgs }) {
@@ -35,6 +44,10 @@ function Scene({ args }: { args: StoryArgs }) {
     showMemory, orderMemory,
     showGPU, orderGPU,
     showCPU, orderCPU,
+    showCompute, orderCompute,
+    showTriangles, orderTriangles,
+    showDrawCalls, orderDrawCalls,
+    showVSync, orderVSync,
     ...restArgs
   } = args;
 
@@ -46,6 +59,10 @@ function Scene({ args }: { args: StoryArgs }) {
       memory: { show: showMemory, order: orderMemory },
       gpu: { show: showGPU, order: orderGPU },
       cpu: { show: showCPU, order: orderCPU },
+      compute: { show: showCompute, order: orderCompute },
+      triangles: { show: showTriangles, order: orderTriangles },
+      drawCalls: { show: showDrawCalls, order: orderDrawCalls },
+      vsync: { show: showVSync, order: orderVSync }
     }
   });
 
@@ -109,13 +126,25 @@ const meta: Meta<StoryArgs> = {
       control: 'boolean',
       description: 'Enable VSync detection'
     },
+    trackCompute: {
+      control: 'boolean',
+      description: 'Track WebGPU compute (experimental)'
+    },
     order: {
       control: { type: 'range', min: -10, max: 10, step: 1 },
-      description: 'Display order in Leva panel (lower numbers appear first)'
+      description: 'Display order in Leva panel'
     },
     fontSize: {
-      control: { type: 'range', min: 8, max: 16, step: 1 },
+      control: { type: 'range', min: 6, max: 16, step: 1 },
       description: 'Font size for stats display'
+    },
+    graphHeight: {
+      control: { type: 'range', min: 0, max: 64, step: 8 },
+      description: 'Graph height (0 = text mode)'
+    },
+    compact: {
+      control: 'boolean',
+      description: 'Use compact display mode'
     },
     // Individual stat controls
     showFPS: { control: 'boolean', description: 'Show FPS stat' },
@@ -128,13 +157,21 @@ const meta: Meta<StoryArgs> = {
     orderGPU: { control: { type: 'number', min: 0, max: 10 }, description: 'GPU display order' },
     showCPU: { control: 'boolean', description: 'Show CPU stat' },
     orderCPU: { control: { type: 'number', min: 0, max: 10 }, description: 'CPU display order' },
+    showCompute: { control: 'boolean', description: 'Show Compute stat' },
+    orderCompute: { control: { type: 'number', min: 0, max: 10 }, description: 'Compute display order' },
+    showTriangles: { control: 'boolean', description: 'Show Triangles stat' },
+    orderTriangles: { control: { type: 'number', min: 0, max: 10 }, description: 'Triangles display order' },
+    showDrawCalls: { control: 'boolean', description: 'Show Draw Calls stat' },
+    orderDrawCalls: { control: { type: 'number', min: 0, max: 10 }, description: 'Draw Calls display order' },
+    showVSync: { control: 'boolean', description: 'Show VSync stat' },
+    orderVSync: { control: { type: 'number', min: 0, max: 10 }, description: 'VSync display order' },
   }
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: StoryObj<StoryArgs> = {
+export const Default: Story = {
   args: {
     updateInterval: 100,
     targetFramerate: null,
@@ -142,8 +179,11 @@ export const Default: StoryObj<StoryArgs> = {
     defaultColor: '#999999',
     showMinMax: true,
     vsync: true,
+    trackCompute: false,
     order: -1,
     fontSize: 12,
+    graphHeight: 0,
+    compact: false,
     showFPS: true,
     orderFPS: 0,
     showMS: true,
@@ -154,20 +194,20 @@ export const Default: StoryObj<StoryArgs> = {
     orderGPU: 3,
     showCPU: true,
     orderCPU: 4,
-  },
-  render: (args) => <StoryComponent {...args} />
+    showCompute: false,
+    orderCompute: 5,
+    showTriangles: true,
+    orderTriangles: 6,
+    showDrawCalls: true,
+    orderDrawCalls: 7,
+    showVSync: true,
+    orderVSync: 8,
+  }
 };
 
-export const CustomOrder: StoryObj<StoryArgs> = {
+export const CustomOrder: Story = {
   args: {
-    updateInterval: 100,
-    targetFramerate: null,
-    showColors: true,
-    defaultColor: '#999999',
-    showMinMax: true,
-    vsync: true,
-    order: -1,
-    fontSize: 12,
+    ...Default.args,
     showFPS: true,
     orderFPS: 2,
     showMS: true,
@@ -177,7 +217,44 @@ export const CustomOrder: StoryObj<StoryArgs> = {
     showGPU: true,
     orderGPU: 3,
     showCPU: false,
-    orderCPU: 4,
-  },
-  render: (args) => <StoryComponent {...args} />
+    showTriangles: true,
+    orderTriangles: 4,
+    showDrawCalls: true,
+    orderDrawCalls: 5,
+    showVSync: false,
+  }
+};
+
+export const MinimalStats: Story = {
+  args: {
+    ...Default.args,
+    compact: true,
+    fontSize: 10,
+    showFPS: true,
+    showGPU: true,
+    showMS: false,
+    showMemory: false,
+    showCPU: false,
+    showCompute: false,
+    showTriangles: false,
+    showDrawCalls: false,
+    showVSync: false,
+  }
+};
+
+export const ToggleStatOptions: Story = {
+  args: {
+    ...Default.args,
+    trackCompute: true,
+    graphHeight: 32,
+    showFPS: true,
+    showMS: true,
+    showMemory: true,
+    showGPU: true,
+    showCPU: true,
+    showCompute: true,
+    showTriangles: true,
+    showDrawCalls: true,
+    showVSync: true,
+  }
 };

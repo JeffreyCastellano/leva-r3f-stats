@@ -1,19 +1,17 @@
-import { useEffect, useState } from 'react';
+// src/components/StatsDisplay.tsx
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useInputContext } from 'leva/plugin';
-import { statsStore } from '../store/statsStore';
-import { StatsOptions } from '../types';
+import { unifiedStore } from '../store/unifiedStore';
+import { StatsOptions, StatsData } from '../types';
 import { ModularDisplay } from './ModularDisplay';
 
 export function StatsDisplay() {
-  const { value } = useInputContext<StatsOptions>();
-  const [stats, setStats] = useState(statsStore.get());
+  const context = useInputContext<{ value: StatsOptions }>();
+  const [stats, setStats] = useState(unifiedStore.get());
+  const throttleTimerRef = useRef<number | null>(null);
+  const latestStatsRef = useRef<StatsData>(stats);
 
-  useEffect(() => {
-    const unsubscribe = statsStore.subscribe(setStats);
-    return unsubscribe;
-  }, []);
-
-  const options: StatsOptions = {
+  const defaultOptions: StatsOptions = useMemo(() => ({
     updateInterval: 100,
     targetFramerate: null,
     compact: false,
@@ -35,9 +33,44 @@ export function StatsDisplay() {
       triangles: { show: true, order: 6 },
       drawCalls: { show: true, order: 7 },
       vsync: { show: true, order: 8 }
-    },
-    ...(value as StatsOptions)
-  };
+    }
+  }), []);
+
+  const options = useMemo(() => {
+    if (context && context.value) {
+      if (typeof context.value === 'object' && 'value' in context.value) {
+        return { ...defaultOptions, ...(context.value.value as StatsOptions) };
+      }
+      return { ...defaultOptions, ...(context.value as StatsOptions) };
+    }
+    
+    return defaultOptions;
+  }, [context, defaultOptions]);
+
+  useEffect(() => {
+    const throttledSetStats = (newStats: StatsData) => {
+      latestStatsRef.current = newStats;
+      
+      if (!throttleTimerRef.current) {
+        throttleTimerRef.current = setTimeout(() => {
+          setStats(latestStatsRef.current);
+          throttleTimerRef.current = null;
+        }, 16) as unknown as number;
+      }
+    };
+    
+    const unsubscribe = unifiedStore.subscribe(throttledSetStats);
+    
+    return () => {
+      unsubscribe();
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return <ModularDisplay stats={stats} options={options} />;
 }
+
+export default StatsDisplay;

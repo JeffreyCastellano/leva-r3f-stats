@@ -113,7 +113,7 @@ const meta: Meta<StoryArgs> = {
       description: 'Display order in Leva panel (lower numbers appear first)'
     },
     fontSize: {
-      control: { type: 'range', min: 8, max: 16, step: 1 },
+      control: { type: 'range', min: 6, max: 16, step: 1 },
       description: 'Font size for stats display'
     }
   }

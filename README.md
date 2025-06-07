@@ -56,6 +56,11 @@ A small Leva plugin to efficiently display React Three Fiber stats
 - [Columns](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/leva-r3f-stats-columns--three-column-layout) - Balanced grid display
 - [WebGPU Experiment](https://lhgjxs.csb.app/) - (https://codesandbox.io/p/sandbox/lhgjxs) External experimental WebGPU Compute Example
 
+### Customization
+- [Colors and Font Sizes](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/leva-r3f-stats-colors-and-font-sizes--performance-colors) - Color themes and font customization
+- [Column Layouts](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/leva-r3f-stats-columns--custom-columns) - Flexible column configurations
+- [Performance Budgets](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/leva-r3f-stats-budgets--low-budget) - Triangle and draw call budgets with visual warnings
+- [Postprocessing](https://JeffreyCastellano.github.io/leva-r3f-stats/?path=/story/leva-r3f-stats-postprocessing--three-js-postprocessing) - Accurate counts with multi-pass rendering
 
 ## Installation
 
@@ -67,19 +72,6 @@ yarn add leva-r3f-stats
 pnpm add leva-r3f-stats
 # or
 bun install leva-r3f-stats
-```
-
-## Peer Dependencies
-Make sure you have these peer dependencies installed:
-
-```json
-{
-  "@react-three/fiber": ">=8.0.0",
-  "leva": ">=0.9.0",
-  "react": ">=18.0.0",
-  "react-dom": ">=18.0.0",
-  "three": ">=0.140.0"
-}
 ```
 
 ## Quick Start
@@ -126,7 +118,6 @@ useStatsPanel({
   // Column configuration
   columns: 2,                 // Default columns for regular mode
   columnsCompact: 4,          // Columns in compact mode (default: 4)
-  columnsGraph: 2,            // Columns in graph mode (default: 2)
   
   // Styling options
   showColors: true,           // Show performance-based colors (default: true)
@@ -137,7 +128,16 @@ useStatsPanel({
   // Feature toggles
   trackCompute: false,        // Track WebGPU compute (experimental) (default: false)
   vsync: true,                // Enable VSync detection (default: true)
-  aggressiveCount: false,     // Accumulates count for multipass or postprocessing setups (default:false)
+  aggressiveCount: false,     // Accumulates triangles/draw calls across render passes (default: false)
+
+    // Graph customization
+  graphBackgroundColor: '#181c20',  // Background color for graphs (default: '#181c20')
+  graphGridColor: '#333',           // Grid line color for graphs (default: '#333')
+  showFullLabels: false,            // Show full labels with extra info in graph mode (default: false)
+  
+  // Performance budgets
+  trianglesBudget: 1000000,         // Triangle budget for warnings (default: 1000000)
+  drawCallsBudget: 1000,            // Draw call budget for warnings (default: 1000)
   // Leva integration
   order: -1,                 // Display order in Leva panel (default: -1)
   folder: null,              // Folder name or config (default: null)
@@ -168,15 +168,8 @@ useStatsPanel({
 });
 
 // Set a specific target
-useStatsPanel({ 
-  targetFramerate: 144   // Target 144 FPS
-});
-
-// Common gaming targets
-useStatsPanel({ targetFramerate: 30 });   // Console target
 useStatsPanel({ targetFramerate: 60 });   // Standard target  
 useStatsPanel({ targetFramerate: 120 });  // High refresh target
-useStatsPanel({ targetFramerate: 144 });  // Gaming monitor
 useStatsPanel({ targetFramerate: 240 });  // Competitive gaming
 ```
 
@@ -221,7 +214,6 @@ Real-time performance graphs for visual monitoring.
 ```jsx
 useStatsPanel({ 
   graphHeight: 48,    // 48px tall graphs
-  columnsGraph: 2,    // 2 graphs per row
   graphHistory: 150   // Show last 150 samples
 });
 ```
@@ -285,7 +277,6 @@ Different column counts for different modes:
 useStatsPanel({
   columns: 3,         // 3 columns in regular mode
   columnsCompact: 6,  // 6 columns in compact mode
-  columnsGraph: 2,    // 2 columns in graph mode
 });
 ```
 
@@ -311,6 +302,64 @@ useStatsPanel({
   fontSize: 11
 });
 ```
+
+### Graph Customization
+Customize the appearance and behavior of graph mode:
+
+```jsx
+// Graph sizing
+useStatsPanel({
+  graphHeight: 48,              // Height of each graph in pixels
+  graphHistory: 150,            // Number of samples to display
+  columns: 3,                   // Number of graphs per row
+});
+
+// Graph colors
+useStatsPanel({
+  graphHeight: 40,
+  graphBackgroundColor: '#1a1a1a',  // Dark background
+  graphGridColor: '#444',           // Light grid lines
+  showColors: true                  // Performance-based text colors
+});
+
+// Full labels in graph mode
+useStatsPanel({
+  graphHeight: 32,
+  showFullLabels: true,  // Shows extra info like targets and peaks
+});
+```
+
+With showFullLabels: true, graphs display additional context:
+```json
+FPS: "FPS (target: 60)"
+MS: "MS (target: 16.7)"
+Triangles: "TRI (peak: 1.2M)"
+Draw Calls: "DRW (peak: 156)"
+```
+
+### Performance Budgets
+Set performance budgets to get visual warnings when limits are exceeded:
+
+```jsx
+// Standard desktop performance budget
+useStatsPanel({
+  trianglesBudget: 1000000,  // 1M triangles
+  drawCallsBudget: 1000,     // 1k draw calls
+});
+
+// Mobile/low-end budget
+useStatsPanel({
+  trianglesBudget: 100000,   // 100k triangles
+  drawCallsBudget: 100,      // 100 draw calls
+});
+
+// High-end desktop budget
+useStatsPanel({
+  trianglesBudget: 5000000,  // 5M triangles
+  drawCallsBudget: 5000,     // 5k draw calls
+});
+```
+
 
 ### Control Display Order
 ```jsx
@@ -438,10 +487,6 @@ function Scene() {
 - Each call has overhead
 - Aggressive count makes multipass counting optional
 
-**VSync**
-- Detected display refresh rate
-- Shows actual Hz when stable
-- Helps set appropriate target framerate
 
 ## How It Works
 
@@ -462,15 +507,6 @@ For Three.js WebGPU renderer:
 3. Resolves timestamps asynchronously
 4. Tracks both render and compute passes
 5. Zero configuration required
-
-### VSync Detection
-Advanced algorithm for accurate refresh rate detection:
-
-1. Collects frame time samples (120 frame window)
-2. Calculates average and standard deviation
-3. Matches against known refresh rates (30-360Hz)
-4. Requires stable frame timing for confidence
-5. Updates dynamically as conditions change
 
 ### Performance Optimizations
 - **Ring Buffers**: Fixed-size circular buffers prevent memory growth
@@ -530,42 +566,7 @@ function Scene() {
 }
 ```
 
-### Gaming Monitor Setup (144Hz)
-```jsx
-function Scene() {
-  useStatsPanel({
-    targetFramerate: 144,
-    graphHeight: 32,
-    columnsGraph: 3,
-    stats: {
-      fps: { show: true, order: 0 },
-      gpu: { show: true, order: 1 },
-      cpu: { show: true, order: 2 }
-    }
-  });
-}
-```
-
-### Minimal Production Setup
-```jsx
-function Scene() {
-  useStatsPanel({
-    compact: true,
-    fontSize: 9,
-    columnsCompact: 6,
-    updateInterval: 250,
-    showMinMax: false,
-    stats: {
-      fps: { show: true },
-      gpu: { show: true },
-      ms: { show: false },
-      cpu: { show: false }
-    }
-  });
-}
-```
-
-### Development Setup with Everything
+### Setup with Everything
 ```jsx
 function Scene() {
   useStatsPanel({
@@ -576,8 +577,7 @@ function Scene() {
     targetFramerate: null, // Auto-detect
     graphHeight: 48,
     graphHistory: 200,
-    columnsGraph: 2,
-    fontSize: 12,
+    fontSize: 10,
     trackCompute: true,
     stats: {
       fps: { show: true, order: 0 },
@@ -750,6 +750,3 @@ if (process.env.NODE_ENV === 'development') {
 ## License
 MIT © Jeffrey Castellano  
 See [LICENSE](LICENSE) for more information.
-
-## Support
-- 🐛 Issues: [GitHub Issues](https://github.com/JeffreyCastellano/leva-r3f-stats/issues)

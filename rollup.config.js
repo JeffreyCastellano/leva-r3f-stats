@@ -1,4 +1,3 @@
-// rollup.config.js
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
@@ -149,13 +148,11 @@ export default {
         properties: {
           regex: /^_/,
           reserved: [
-            // Keep public API names
             'useStatsPanel',
             'stats',
             'statsPlugin',
             'StatsOptions',
             'StatsData',
-            // Keep important internals that might be accessed
             'fps',
             'ms',
             'memory',

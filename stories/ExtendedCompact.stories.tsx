@@ -127,7 +127,7 @@ const meta: Meta<StoryArgs> = {
       description: 'Default text color when showColors is false'
     },
     fontSize: {
-      control: { type: 'range', min: 8, max: 16, step: 1 },
+      control: { type: 'range', min: 6, max: 16, step: 1 },
       description: 'Font size for compact mode'
     },
     vsync: {

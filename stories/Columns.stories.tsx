@@ -8,10 +8,10 @@ import { useStatsPanel } from '../src';
 interface StoryArgs {
   columns: number;
   columnsCompact: number;
-  columnsGraph: number;
   compact: boolean;
   graphHeight: number;
   fontSize: number;
+  showFullLabels: boolean;
 }
 
 function Scene({ args }: { args: StoryArgs }) {
@@ -53,27 +53,27 @@ const meta: Meta<StoryArgs> = {
   argTypes: {
     columns: {
       control: { type: 'range', min: 1, max: 6, step: 1 },
-      description: 'Default columns (used when columnsCompact/columnsGraph not set)'
+      description: 'Number of columns (used in normal and graph mode)'
     },
     columnsCompact: {
       control: { type: 'range', min: 1, max: 8, step: 1 },
       description: 'Columns in compact mode'
-    },
-    columnsGraph: {
-      control: { type: 'range', min: 1, max: 4, step: 1 },
-      description: 'Columns in graph mode'
     },
     compact: {
       control: 'boolean',
       description: 'Enable compact mode'
     },
     graphHeight: {
-      control: { type: 'range', min: 0, max: 48, step: 8 },
+      control: { type: 'range', min: 6, max: 48, step: 8 },
       description: 'Graph height (0 for text mode)'
     },
     fontSize: {
-      control: { type: 'range', min: 8, max: 16, step: 1 },
+      control: { type: 'range', min: 6, max: 16, step: 1 },
       description: 'Font size for all modes'
+    },
+    showFullLabels: {
+      control: 'boolean',
+      description: 'Show full labels in graph mode'
     },
   }
 };
@@ -85,10 +85,10 @@ export const CustomColumns: StoryObj<StoryArgs> = {
   args: {
     columns: 2,
     columnsCompact: 4,
-    columnsGraph: 2,
     compact: false,
     graphHeight: 0,
-    fontSize: 12,
+    fontSize: 10,
+    showFullLabels: false,
   }
 };
 
@@ -96,10 +96,10 @@ export const ThreeColumnLayout: StoryObj<StoryArgs> = {
   args: {
     columns: 3,
     columnsCompact: 3,
-    columnsGraph: 3,
     compact: false,
     graphHeight: 32,
     fontSize: 12,
+    showFullLabels: true,
   }
 };
 
@@ -107,10 +107,10 @@ export const SingleColumn: StoryObj<StoryArgs> = {
   args: {
     columns: 1,
     columnsCompact: 1,
-    columnsGraph: 1,
     compact: true,
     graphHeight: 0,
     fontSize: 10,
+    showFullLabels: false,
   }
 };
 
@@ -118,9 +118,9 @@ export const WideCompact: StoryObj<StoryArgs> = {
   args: {
     columns: 2,
     columnsCompact: 6,
-    columnsGraph: 2,
     compact: true,
     graphHeight: 0,
     fontSize: 8,
+    showFullLabels: false,
   }
 };

@@ -6,23 +6,33 @@ export interface StatsOptions {
   defaultColor?: string;
   showMinMax?: boolean;
   trackCompute?: boolean;
-  aggressiveCount?: boolean;
   vsync?: boolean;
   order?: number;
-  folder?: string | { name: string; collapsed?: boolean };
   graphHeight?: number;
   graphHistory?: number;
+  folder?: string | { name: string; collapsed?: boolean };
   columns?: number;
   columnsCompact?: number;
-  columnsGraph?: number;
-  fontSize?: number; 
+  fontSize?: number;
+  aggressiveCount?: boolean;
+  graphBackgroundColor?: string;
+  graphGridColor?: string;
+  trianglesBudget?: number;
+  drawCallsBudget?: number;
+  showFullLabels?: boolean;  // New: show full labels in graph mode
   stats?: {
-    [key: string]: {
-      show?: boolean;
-      order?: number;
-    };
+    fps?: { show?: boolean; order?: number };
+    ms?: { show?: boolean; order?: number };
+    memory?: { show?: boolean; order?: number };
+    gpu?: { show?: boolean; order?: number };
+    cpu?: { show?: boolean; order?: number };
+    compute?: { show?: boolean; order?: number };
+    triangles?: { show?: boolean; order?: number };
+    drawCalls?: { show?: boolean; order?: number };
+    vsync?: { show?: boolean; order?: number };
   };
 }
+
 
 export interface StatsData {
   fps: number;
@@ -38,18 +48,12 @@ export interface StatsData {
   gpuAccurate: boolean;
 }
 
-export interface StatConfig {
-  key: keyof StatsData;
-  label: string;
-  shortLabel: string;
-  unit?: string;
-  format: (value: number) => string;
-  color?: (value: number, thresholds: Thresholds) => string;
-  show: boolean;
-  order: number;
-  showInCompact?: boolean;
-  graphMin?: number;
-  graphMax?: (thresholds: Thresholds) => number;
+export interface GPUTimingState {
+  available: boolean;
+  ext: any;
+  query: WebGLQuery | null;
+  queryInProgress: boolean;
+  lastGPUTime: number;
 }
 
 export interface Thresholds {
@@ -61,12 +65,27 @@ export interface Thresholds {
   gpuCritical: number;
   targetFPS: number;
   targetMS: number;
+  trianglesBudget: number; 
+  drawCallsBudget: number;  
+  trianglesWarning: number; 
+  trianglesCritical: number; 
+  drawCallsWarning: number; 
+  drawCallsCritical: number;
 }
 
-export interface GPUTimingState {
-  available: boolean;
-  ext: any;
-  query: WebGLQuery | null;
-  queryInProgress: boolean;
-  lastGPUTime: number;
+export interface StatConfig {
+  key: keyof StatsData;
+  label: string;
+  shortLabel: string;
+  labelSuffix?: string;
+  unit?: string;
+  format: (value: number) => string;
+  color?: (value: number, thresholds: Thresholds) => string;
+  show: boolean;
+  order: number;
+  showInCompact?: boolean;
+  graphMin?: number;
+  graphMax?: (thresholds: Thresholds) => number;
 }
+
+export type StatKey = 'fps' | 'ms' | 'memory' | 'gpu' | 'cpu' | 'compute' | 'triangles' | 'drawCalls';

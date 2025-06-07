@@ -1,140 +1,139 @@
-import { StatConfig, Thresholds } from '../types';
-import { formatFPS, formatMS, formatMemory, formatGPU, formatCPU, formatTriangles, formatTo3Digits, formatVSync } from './formatters';
+// src/utils/statConfigs.ts
+import { StatConfig, StatsOptions, Thresholds } from '../types';
+import { unifiedStore } from '../store/unifiedStore';
 
-export function createStatConfigs(options: any, thresholds: Thresholds): StatConfig[] {
-  const configs: StatConfig[] = [
-    {
-      key: 'fps',
-      label: `FPS (target: ${thresholds.targetFPS})`,
-      shortLabel: 'FPS',
-      unit: '',
-      format: formatFPS,
-      color: (value: number) => {
-        if (value < thresholds.fpsCritical) return '#ff6b6b';
-        if (value < thresholds.fpsWarning) return '#ffd93d';
-        return '#51cf66';
-      },
-      show: options.stats?.fps?.show !== false,
-      order: options.stats?.fps?.order ?? 0,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => thresholds.targetFPS * 1.2
-    },
-    {
-      key: 'ms',
-      label: `MS (target: ${thresholds.targetMS.toFixed(1)})`,
-      shortLabel: 'MS',
-      unit: 'ms',
-      format: formatMS,
-      color: (value: number) => {
-        if (value > thresholds.msCritical) return '#ff6b6b';
-        if (value > thresholds.msWarning) return '#ffd93d';
-        return '#51cf66';
-      },
-      show: options.stats?.ms?.show !== false,
-      order: options.stats?.ms?.order ?? 1,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => thresholds.targetMS * 2
-    },
-    {
-      key: 'memory',
-      label: 'Memory (MB)',
-      shortLabel: 'MEM',
-      unit: 'MB',
-      format: formatMemory,
-      show: options.stats?.memory?.show !== false,
-      order: options.stats?.memory?.order ?? 2,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => 1024
-    },
-    {
-      key: 'gpu',
-      label: 'GPU (ms)',
-      shortLabel: 'GPU',
-      unit: 'ms',
-      format: formatGPU,
-      color: (value: number) => {
-        if (value > thresholds.gpuCritical) return '#ff6b6b';
-        if (value > thresholds.gpuWarning) return '#ffd93d';
-        return '#51cf66';
-      },
-      show: options.stats?.gpu?.show !== false,
-      order: options.stats?.gpu?.order ?? 3,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => thresholds.targetMS * 2
-    },
-    {
-      key: 'cpu',
-      label: 'CPU (ms)',
-      shortLabel: 'CPU',
-      unit: 'ms',
-      format: formatCPU,
-      color: (value: number) => {
-        if (value > thresholds.msCritical) return '#ff6b6b';
-        if (value > thresholds.msWarning) return '#ffd93d';
-        return '#51cf66';
-      },
-      show: options.stats?.cpu?.show !== false,
-      order: options.stats?.cpu?.order ?? 4,
-      showInCompact: false,
-      graphMin: 0,
-      graphMax: () => thresholds.targetMS * 2
-    },
-    {
-      key: 'compute',
-      label: 'Compute (ms)',
-      shortLabel: 'COMP',
-      unit: 'ms',
-      format: formatMS,
-      color: (value: number) => {
-        if (value > thresholds.msCritical) return '#ff6b6b';
-        if (value > thresholds.msWarning) return '#ffd93d';
-        return '#51cf66';
-      },
-      show: options.trackCompute === true && options.stats?.compute?.show !== false,
-      order: options.stats?.compute?.order ?? 5,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => thresholds.targetMS
-    },
-    {
-      key: 'triangles',
-      label: 'Triangles',
-      shortLabel: 'TRI',
-      unit: '',
-      format: formatTriangles,
-      show: options.stats?.triangles?.show !== false,
-      order: options.stats?.triangles?.order ?? 6,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => 1000000
-    },
-    {
-      key: 'drawCalls',
-      label: 'Draw Calls',
-      shortLabel: 'DRW',
-      unit: '',
-      format: formatTo3Digits,
-      show: options.stats?.drawCalls?.show !== false, 
-      order: options.stats?.drawCalls?.order ?? 7,
-      showInCompact: true,
-      graphMin: 0,
-      graphMax: () => 1000
-    },
-    {
-      key: 'vsync',
-      label: 'VSync',
-      shortLabel: '',
-      unit: 'Hz',
-      format: formatVSync,
-      show: options.vsync !== false && options.stats?.vsync?.show !== false,
-      order: options.stats?.vsync?.order ?? 8,
-      showInCompact: false
-    }
-  ];
+const LABELS = {
+  fps: 'FPS',
+  ms: 'MS',
+  memory: 'MEM',
+  gpu: 'GPU',
+  cpu: 'CPU',
+  compute: 'COMP',
+  triangles: 'TRI',
+  drawCalls: 'DRW',
+  vsync: 'VSYNC'
+};
 
-  return configs.filter(config => config.show).sort((a, b) => a.order - b.order);
+const FORMATS = {
+  fps: (v: number) => v.toFixed(0),
+  ms: (v: number) => v.toFixed(1),
+  memory: (v: number) => v.toFixed(0),
+  gpu: (v: number) => v.toFixed(1),
+  cpu: (v: number) => v.toFixed(1),
+  compute: (v: number) => v.toFixed(1),
+  triangles: (v: number) => {
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+    return v.toString();
+  },
+  drawCalls: (v: number) => v.toFixed(0),
+  vsync: (v: number | null) => v ? `${v}Hz` : 'N/A'
+};
+
+const getColor = (value: number, good: number, bad: number, invert = false): string => {
+  const ratio = invert 
+    ? (bad - value) / (bad - good)
+    : (value - good) / (bad - good);
+  
+  if (ratio <= 0) return '#51cf66';
+  if (ratio >= 1) return '#ff6b6b';
+  return '#ffd93d';
+};
+
+export const DEFAULT_THRESHOLDS: Thresholds = {
+  fpsWarning: 48,
+  fpsCritical: 30,
+  msWarning: 20,
+  msCritical: 33,
+  gpuWarning: 20,
+  gpuCritical: 33,
+  targetFPS: 60,
+  targetMS: 16.67,
+  trianglesBudget: 1000000,
+  drawCallsBudget: 1000,
+  trianglesWarning: 800000,
+  trianglesCritical: 1200000,
+  drawCallsWarning: 800,
+  drawCallsCritical: 1200
+};
+
+export function createStatConfigs(options: StatsOptions, thresholds: Thresholds = DEFAULT_THRESHOLDS): StatConfig[] {
+  const stats = options.stats || {};
+  const peaks = unifiedStore.getPeaks();
+  
+  return Object.entries(LABELS)
+    .filter(([key]) => {
+      if (key === 'compute' && !options.trackCompute) return false;
+      if (key === 'vsync' && options.vsync === false) return false;
+      return stats[key as keyof typeof stats]?.show !== false;
+    })
+    .map(([key, label]) => {
+      const statKey = key as keyof typeof LABELS;
+      const order = stats[statKey]?.order ?? Object.keys(LABELS).indexOf(statKey);
+      
+      let color = undefined;
+      let graphMax = 100;
+      let labelSuffix = undefined; // New field for suffix
+      
+      switch (statKey) {
+        case 'fps':
+          color = (v: number) => getColor(v, thresholds.fpsCritical, thresholds.fpsWarning, true);
+          graphMax = thresholds.targetFPS * 1.2;
+          labelSuffix = `MAX: ${thresholds.targetFPS}`;
+          break;
+        case 'ms':
+          color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
+          graphMax = thresholds.targetMS * 2;
+          labelSuffix = `MAX: ${thresholds.targetMS.toFixed(1)}ms`;
+          break;
+        case 'gpu':
+        case 'cpu':
+          color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
+          graphMax = thresholds.targetMS * 2;
+          break;
+        case 'triangles':
+          color = (v: number) => getColor(v, thresholds.trianglesWarning, thresholds.trianglesCritical);
+          graphMax = Math.max(thresholds.trianglesBudget * 1.5, peaks.triangles * 1.2);
+          labelSuffix = peaks.triangles > 0 
+            ? `MAX: ${FORMATS.triangles(peaks.triangles)}`
+            : `MAX: ${FORMATS.triangles(thresholds.trianglesBudget)}`;
+          break;
+        case 'drawCalls':
+          color = (v: number) => getColor(v, thresholds.drawCallsWarning, thresholds.drawCallsCritical);
+          graphMax = Math.max(thresholds.drawCallsBudget * 1.5, peaks.drawCalls * 1.2);
+          labelSuffix = peaks.drawCalls > 0
+            ? `MAX: ${peaks.drawCalls}`
+            : `MAX: ${thresholds.drawCallsBudget}`;
+          break;
+      }
+      
+      return {
+        key: statKey,
+        label: label, // Just the main label now
+        labelSuffix, // Separate suffix
+        shortLabel: label,
+        unit: statKey === 'memory' ? 'MB' : statKey === 'vsync' ? 'Hz' : '',
+        format: FORMATS[statKey],
+        color,
+        show: true,
+        order,
+        showInCompact: statKey !== 'cpu' && statKey !== 'vsync',
+        graphMin: 0,
+        graphMax: () => graphMax
+      } as StatConfig;
+    })
+    .sort((a, b) => a.order - b.order);
+}
+export function getVisibleConfigs(
+  configs: StatConfig[], 
+  stats: any, 
+  compact: boolean = false
+): StatConfig[] {
+  return configs.filter(config => {
+    if (compact && !config.showInCompact) return false;
+    if (config.key === 'compute' && (!stats.isWebGPU || stats.compute === 0)) return false;
+    if (config.key === 'vsync' && !stats.vsync) return false;
+    return true;
+  });
 }

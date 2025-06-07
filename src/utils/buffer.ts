@@ -1,9 +1,13 @@
-// src/utils/RingBuffer.ts
+// src/utils/buffer.ts
 export class RingBuffer {
   private buffer: Float32Array;
   private pointer: number = 0;
   private filled: boolean = false;
-  public readonly size: number;
+  public size: number;
+  private min: number = Infinity;
+  private max: number = -Infinity;
+  private sum: number = 0;
+  private count: number = 0;
 
   constructor(size: number) {
     this.size = size;
@@ -11,54 +15,70 @@ export class RingBuffer {
   }
 
   push(value: number): void {
+    // Update min/max/sum incrementally
+    if (this.filled) {
+      const oldValue = this.buffer[this.pointer];
+      this.sum -= oldValue;
+      if (oldValue === this.min || oldValue === this.max) {
+        this.recalculateStats();
+      }
+    }
+
     this.buffer[this.pointer] = value;
+    this.sum += value;
+    this.min = Math.min(this.min, value);
+    this.max = Math.max(this.max, value);
+    
     this.pointer = (this.pointer + 1) % this.size;
     if (this.pointer === 0) this.filled = true;
+    this.count = this.filled ? this.size : this.pointer;
+  }
+
+  private recalculateStats(): void {
+    this.min = Infinity;
+    this.max = -Infinity;
+    this.sum = 0;
+    this.forEachValue((value) => {
+      this.min = Math.min(this.min, value);
+      this.max = Math.max(this.max, value);
+      this.sum += value;
+    });
+  }
+
+  resize(newSize: number): void {
+    if (newSize === this.size) return;
+    
+    const oldData = this.getData();
+    this.size = newSize;
+    this.buffer = new Float32Array(newSize);
+    this.pointer = 0;
+    this.filled = false;
+    this.min = Infinity;
+    this.max = -Infinity;
+    this.sum = 0;
+    
+    // Copy most recent data
+    const copyCount = Math.min(oldData.length, newSize);
+    const startIdx = Math.max(0, oldData.length - copyCount);
+    for (let i = 0; i < copyCount; i++) {
+      this.push(oldData[startIdx + i]);
+    }
   }
 
   getLatest(): number {
+    if (this.count === 0) return 0;
     const index = (this.pointer - 1 + this.size) % this.size;
     return this.buffer[index];
   }
 
-  getAverage(): number {
-    const count = this.filled ? this.size : this.pointer;
-    if (count === 0) return 0;
-    
-    let sum = 0;
-    for (let i = 0; i < count; i++) {
-      sum += this.buffer[i];
-    }
-    return sum / count;
-  }
-
-  getMin(): number {
-    const count = this.filled ? this.size : this.pointer;
-    if (count === 0) return 0;
-    
-    let min = Infinity;
-    for (let i = 0; i < count; i++) {
-      if (this.buffer[i] < min) min = this.buffer[i];
-    }
-    return min;
-  }
-
-  getMax(): number {
-    const count = this.filled ? this.size : this.pointer;
-    if (count === 0) return 0;
-    
-    let max = -Infinity;
-    for (let i = 0; i < count; i++) {
-      if (this.buffer[i] > max) max = this.buffer[i];
-    }
-    return max;
-  }
-
   getData(): Float32Array {
+    if (this.count === 0) return new Float32Array(0);
+    
     if (!this.filled) {
       return this.buffer.slice(0, this.pointer);
     }
     
+    // Reorder circular buffer
     const result = new Float32Array(this.size);
     for (let i = 0; i < this.size; i++) {
       result[i] = this.buffer[(this.pointer + i) % this.size];
@@ -67,30 +87,44 @@ export class RingBuffer {
   }
 
   forEachValue(callback: (value: number, index: number) => void): void {
-    const count = this.filled ? this.size : this.pointer;
-    if (count === 0) return;
+    if (this.count === 0) return;
 
     if (!this.filled) {
-      // Data is contiguous from 0 to pointer
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < this.pointer; i++) {
         callback(this.buffer[i], i);
       }
     } else {
-      // Data wraps around, start from oldest (pointer position)
-      for (let i = 0; i < count; i++) {
-        const bufferIndex = (this.pointer + i) % this.size;
-        callback(this.buffer[bufferIndex], i);
+      for (let i = 0; i < this.size; i++) {
+        callback(this.buffer[(this.pointer + i) % this.size], i);
       }
     }
   }
 
-  getCount(): number {
-    return this.filled ? this.size : this.pointer;
-  }
+  getMin(): number { return this.count > 0 ? this.min : 0; }
+  getMax(): number { return this.count > 0 ? this.max : 0; }
+  getAverage(): number { return this.count > 0 ? this.sum / this.count : 0; }
+  getCount(): number { return this.count; }
 
   clear(): void {
-    this.buffer.fill(0);
     this.pointer = 0;
     this.filled = false;
+    this.min = Infinity;
+    this.max = -Infinity;
+    this.sum = 0;
+    this.count = 0;
+  }
+
+  // Add destroy method for compatibility
+  destroy(): void {
+    this.clear();
   }
 }
+
+// Export pool stats stub for compatibility
+export const getPoolStats = () => ({ 
+  arrayCount: 0, 
+  memoryUsage: 0, 
+  isActive: false, 
+  activeInstances: 0,
+  lastUsage: new Date().toISOString()
+});
