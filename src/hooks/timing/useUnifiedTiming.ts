@@ -9,6 +9,7 @@ interface UnifiedTimingOptions {
   trackCompute?: boolean;
   updateInterval?: number;
   aggressiveCount?: boolean;
+  smoothing?: boolean;
 }
 
 class GeometryAccumulator {
@@ -25,13 +26,104 @@ class GeometryAccumulator {
   }
 }
 
+class FrameTimeSmoothing {
+  private samples: number[] = [];
+  private readonly maxSamples: number;
+  private readonly outlierThreshold: number;
+  
+  constructor(config = { maxSamples: 10, outlierThreshold: 2.5 }) {
+    this.maxSamples = config.maxSamples;
+    this.outlierThreshold = config.outlierThreshold;
+  }
+  
+  add(frameTime: number): number {
+    // Add to samples
+    this.samples.push(frameTime);
+    if (this.samples.length > this.maxSamples) {
+      this.samples.shift();
+    }
+    
+    // Not enough samples yet
+    if (this.samples.length < 3) {
+      return frameTime;
+    }
+    
+    // Calculate median and standard deviation
+    const sorted = [...this.samples].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    
+    // Calculate MAD (Median Absolute Deviation) for robust outlier detection
+    const deviations = sorted.map(x => Math.abs(x - median));
+    const mad = deviations.sort((a, b) => a - b)[Math.floor(deviations.length / 2)];
+    const threshold = median + (mad * this.outlierThreshold);
+    
+    // If current frame is an outlier, use median instead
+    if (frameTime > threshold && this.samples.length >= 5) {
+      return median;
+    }
+    
+    // Use weighted average of recent samples, giving more weight to non-outliers
+    const weights = this.samples.map(sample => 
+      sample > threshold ? 0.1 : 1.0
+    );
+    const weightSum = weights.reduce((a, b) => a + b, 0);
+    const weightedAvg = this.samples.reduce((sum, sample, i) => 
+      sum + (sample * weights[i]), 0
+    ) / weightSum;
+    
+    return weightedAvg;
+  }
+  
+  reset(): void {
+    this.samples = [];
+  }
+}
+
+class MetricSmoothing {
+  private smoothers: Map<string, FrameTimeSmoothing> = new Map();
+  
+  // Different smoothing configs for different metric types
+  private configs = {
+    timing: { maxSamples: 10, outlierThreshold: 2.5 },    // ms, gpu, cpu
+    geometry: { maxSamples: 5, outlierThreshold: 3.0 },   // triangles, drawCalls
+    memory: { maxSamples: 20, outlierThreshold: 2.0 }     // memory
+  };
+  
+  getSmoothed(metric: string, value: number): number {
+    if (!this.smoothers.has(metric)) {
+      const config = this.getConfig(metric);
+      this.smoothers.set(metric, new FrameTimeSmoothing(config));
+    }
+    
+    return this.smoothers.get(metric)!.add(value);
+  }
+  
+  private getConfig(metric: string) {
+    if (['ms', 'gpu', 'cpu', 'compute'].includes(metric)) {
+      return this.configs.timing;
+    }
+    if (['triangles', 'drawCalls'].includes(metric)) {
+      return this.configs.geometry;
+    }
+    if (metric === 'memory') {
+      return this.configs.memory;
+    }
+    return this.configs.timing; // default
+  }
+  
+  reset(): void {
+    this.smoothers.clear();
+  }
+}
+
 export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions) {
   const gl = useThree(state => state.gl);
   const frameCount = useRef(0);
   const lastFrameTime = useRef(0);
-  const avgFrameTime = useRef(16.67);
+  const frameTimeSmoothing = useRef(new FrameTimeSmoothing());
+  const metricSmoothing = useRef(new MetricSmoothing());
   const vsyncDetector = useRef(new VSyncDetector(options.vsync !== false));
-  const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
+  //const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
 
   const frameAccumulator = useRef(new GeometryAccumulator());
   const peakStats = useRef(new GeometryAccumulator());
@@ -54,9 +146,9 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     
     if (lastFrameTime.current > 0) {
       const delta = currentTime - lastFrameTime.current;
-      avgFrameTime.current = avgFrameTime.current * 0.9 + delta * 0.1;
-      stats.ms = avgFrameTime.current;
-      stats.fps = 1000 / avgFrameTime.current;
+      const smoothedDelta = frameTimeSmoothing.current.add(delta);
+      stats.ms = smoothedDelta;
+      stats.fps = 1000 / smoothedDelta;
     }
     
     lastFrameTime.current = currentTime;
@@ -82,68 +174,115 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     let gpuQuery: WebGLQuery | null = null;
     let queryInProgress = false;
     let mounted = true;
+    let contextLostHandler: (() => void) | null = null;
+    let contextRestoredHandler: (() => void) | null = null;
     
-    if (!isWebGPU && (gl as any).info) {
-      const info = (gl as any).info;
+    // Function to initialize/reinitialize
+    const initialize = () => {
+      // Reset frame time smoothing on reinit
+      frameTimeSmoothing.current.reset();
+      metricSmoothing.current.reset();
       
-      if (options.aggressiveCount) {
-        originalUpdate.current = info.update;
-        
-        const accumulator = frameAccumulator.current;
-        info.update = function(count: number, mode: number, instanceCount: number) {
-          originalUpdate.current.call(this, count, mode, instanceCount);
-          
-          accumulator.triangles += count / 3;
-          accumulator.drawCalls += 1;
-        };
-      } else {
-        const peak = peakStats.current;
-        peak.reset();
-        
-        originalUpdate.current = info.update;
-        
-        info.update = function(count: number, mode: number, instanceCount: number) {
-          originalUpdate.current.call(this, count, mode, instanceCount);
-          
-          const renderInfo = (gl as any).info.render;
-          if (renderInfo.triangles > peak.triangles) {
-            peak.triangles = renderInfo.triangles;
-          }
-          if (renderInfo.calls > peak.drawCalls) {
-            peak.drawCalls = renderInfo.calls;
-          }
-        };
-      }
-    }
-    
-    // NEW: WebGPU frame-based tracking
-    if (isWebGPU && (gl as any).render) {
-      webGPUFrameStats.current.originalRender = (gl as any).render.bind(gl);
-      
-      (gl as any).render = function(...args: any[]) {
+      if (!isWebGPU && (gl as any).info) {
         const info = (gl as any).info;
-        const startTriangles = info?.render?.triangles || 0;
-        const startCalls = info?.render?.calls || 0;
         
-        // Call original render
-        const result = webGPUFrameStats.current.originalRender.apply(this, args);
-        
-        // Calculate frame stats after render
-        if (info?.render) {
-          const endTriangles = info.render.triangles || 0;
-          const endCalls = info.render.calls || 0;
-          
-          // Always update, even if 0 (empty scene)
-          webGPUFrameStats.current.frameTriangles = endTriangles - startTriangles;
-          webGPUFrameStats.current.frameDrawCalls = endCalls - startCalls;
+        // Store original update if not already stored
+        if (!originalUpdate.current) {
+          originalUpdate.current = info.update;
         }
         
-        return result;
+        if (options.aggressiveCount) {
+          const accumulator = frameAccumulator.current;
+          info.update = function(count: number, mode: number, instanceCount: number) {
+            originalUpdate.current.call(this, count, mode, instanceCount);
+            
+            accumulator.triangles += count / 3;
+            accumulator.drawCalls += 1;
+          };
+        } else {
+          const peak = peakStats.current;
+          peak.reset();
+          
+          info.update = function(count: number, mode: number, instanceCount: number) {
+            originalUpdate.current.call(this, count, mode, instanceCount);
+            
+            const renderInfo = (gl as any).info.render;
+            if (renderInfo.triangles > peak.triangles) {
+              peak.triangles = renderInfo.triangles;
+            }
+            if (renderInfo.calls > peak.drawCalls) {
+              peak.drawCalls = renderInfo.calls;
+            }
+          };
+        }
+      }
+      
+      // Reinitialize WebGPU tracking
+      if (isWebGPU && (gl as any).render && !webGPUFrameStats.current.originalRender) {
+        webGPUFrameStats.current.originalRender = (gl as any).render.bind(gl);
+        
+        (gl as any).render = function(...args: any[]) {
+          const info = (gl as any).info;
+          const startTriangles = info?.render?.triangles || 0;
+          const startCalls = info?.render?.calls || 0;
+          
+          // Call original render
+          const result = webGPUFrameStats.current.originalRender.apply(this, args);
+          
+          // Calculate frame stats after render
+          if (info?.render) {
+            const endTriangles = info.render.triangles || 0;
+            const endCalls = info.render.calls || 0;
+            
+            // Always update, even if 0 (empty scene)
+            webGPUFrameStats.current.frameTriangles = endTriangles - startTriangles;
+            webGPUFrameStats.current.frameDrawCalls = endCalls - startCalls;
+          }
+          
+          return result;
+        };
+      }
+    };
+    
+    // Set up context loss handlers for WebGL
+    if (!isWebGPU) {
+      const canvas = gl.domElement;
+      
+      contextLostHandler = () => {
+        console.log('WebGL context lost, stats paused');
+        queryInProgress = false;
+        if (gpuQuery) {
+          gpuQuery = null; // Don't try to delete, context is lost
+        }
+        // Reset stats to indicate no data
+        refs.stats.current.gpuAccurate = false;
+        refs.stats.current.gpu = 0;
       };
+      
+      contextRestoredHandler = () => {
+        console.log('WebGL context restored, reinitializing stats');
+        // Reinitialize everything
+        initialize();
+      };
+      
+      canvas.addEventListener('webglcontextlost', contextLostHandler);
+      canvas.addEventListener('webglcontextrestored', contextRestoredHandler);
     }
+    
+    // Initial setup
+    initialize();
     
     const checkGPU = () => {
       if (!mounted) return;
+      
+      // Skip if context is lost
+      if (!isWebGPU) {
+        const gl2 = gl.getContext() as WebGL2RenderingContext;
+        if (!gl2 || gl2.isContextLost?.()) {
+          refs.stats.current.gpuAccurate = false;
+          return;
+        }
+      }
       
       if (isWebGPU) {
         const info = (gl as any).info;
@@ -242,6 +381,16 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       clearInterval(interval);
       endQuery();
       
+      // Remove context loss handlers
+      if (!isWebGPU && gl.domElement) {
+        if (contextLostHandler) {
+          gl.domElement.removeEventListener('webglcontextlost', contextLostHandler);
+        }
+        if (contextRestoredHandler) {
+          gl.domElement.removeEventListener('webglcontextrestored', contextRestoredHandler);
+        }
+      }
+      
       if (!isWebGPU && originalUpdate.current && (gl as any).info) {
         (gl as any).info.update = originalUpdate.current;
         originalUpdate.current = null;
@@ -282,21 +431,29 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       lastUpdate = now;
       const stats = refs.stats.current;
       
-      // CHANGED: Calculate CPU time only when GPU timing is accurate
-      const cpuTime = stats.gpuAccurate ? Math.max(0, stats.ms - stats.gpu) : 0;
+      // Apply smoothing to all metrics if enabled
+      const smoothingEnabled = options.smoothing !== false;
       
-      unifiedStore.update({
-        fps: stats.fps,
-        ms: stats.ms,
-        memory: stats.memory,
-        gpu: stats.gpu,
-        cpu: cpuTime,  // Only accurate when GPU timing is available
-        compute: stats.compute,
-        triangles: stats.triangles,
-        drawCalls: stats.drawCalls,
+      const smoothedStats = {
+        fps: stats.fps, // Already smoothed in useFrame
+        ms: stats.ms,   // Already smoothed in useFrame
+        memory: smoothingEnabled ? metricSmoothing.current.getSmoothed('memory', stats.memory) : stats.memory,
+        gpu: smoothingEnabled ? metricSmoothing.current.getSmoothed('gpu', stats.gpu) : stats.gpu,
+        compute: smoothingEnabled ? metricSmoothing.current.getSmoothed('compute', stats.compute) : stats.compute,
+        triangles: smoothingEnabled ? metricSmoothing.current.getSmoothed('triangles', stats.triangles) : stats.triangles,
+        drawCalls: smoothingEnabled ? metricSmoothing.current.getSmoothed('drawCalls', stats.drawCalls) : stats.drawCalls,
         vsync: stats.vsync,
         isWebGPU: stats.isWebGPU,
         gpuAccurate: stats.gpuAccurate
+      };
+      
+      // Calculate CPU after GPU smoothing
+      const cpuTime = smoothedStats.gpuAccurate ? 
+        Math.max(0, smoothedStats.ms - smoothedStats.gpu) : 0;
+      
+      unifiedStore.update({
+        ...smoothedStats,
+        cpu: smoothingEnabled ? metricSmoothing.current.getSmoothed('cpu', cpuTime) : cpuTime
       });
       
       if (mounted) {
@@ -309,5 +466,5 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     return () => {
       mounted = false;
     };
-  }, [refs, options.updateInterval]);
+  }, [refs, options.updateInterval, options.smoothing]);
 }
