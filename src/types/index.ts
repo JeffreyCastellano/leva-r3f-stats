@@ -1,3 +1,10 @@
+export interface SmoothingConfig {
+  enabled?: boolean;
+  timing?: { maxSamples?: number; outlierThreshold?: number };
+  geometry?: { maxSamples?: number; outlierThreshold?: number };
+  memory?: { maxSamples?: number; outlierThreshold?: number };
+}
+
 export interface StatsOptions {
   updateInterval?: number;
   targetFramerate?: number | null;
@@ -18,6 +25,7 @@ export interface StatsOptions {
   graphBackgroundColor?: string;
   graphGridColor?: string;
   trianglesBudget?: number;
+  smoothing?: boolean | SmoothingConfig;
   drawCallsBudget?: number;
   showFullLabels?: boolean;  // New: show full labels in graph mode
   stats?: {
@@ -32,7 +40,6 @@ export interface StatsOptions {
     vsync?: { show?: boolean; order?: number };
   };
 }
-
 
 export interface StatsData {
   fps: number;

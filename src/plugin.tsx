@@ -13,6 +13,7 @@ export function stats(options: StatsOptions = {}): ReturnType<typeof statsPlugin
     compact: false,
     showColors: true,
     defaultColor: '#999999',
+    smoothing: true,
     showMinMax: true,
     trackCompute: false,
     vsync: true,

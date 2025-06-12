@@ -4,12 +4,19 @@ import { TimingRefs } from '../utils/timing-state';
 import { unifiedStore } from '../../store/unifiedStore';
 import { VSyncDetector } from '../../utils/vsync';
 
+interface SmoothingConfig {
+  enabled?: boolean;
+  timing?: { maxSamples?: number; outlierThreshold?: number };
+  geometry?: { maxSamples?: number; outlierThreshold?: number };
+  memory?: { maxSamples?: number; outlierThreshold?: number };
+}
+
 interface UnifiedTimingOptions {
   vsync?: boolean;
   trackCompute?: boolean;
   updateInterval?: number;
   aggressiveCount?: boolean;
-  smoothing?: boolean;
+  smoothing?: boolean | SmoothingConfig;
 }
 
 class GeometryAccumulator {
@@ -81,13 +88,31 @@ class FrameTimeSmoothing {
 
 class MetricSmoothing {
   private smoothers: Map<string, FrameTimeSmoothing> = new Map();
-  
-  // Different smoothing configs for different metric types
-  private configs = {
-    timing: { maxSamples: 10, outlierThreshold: 2.5 },    // ms, gpu, cpu
-    geometry: { maxSamples: 5, outlierThreshold: 3.0 },   // triangles, drawCalls
-    memory: { maxSamples: 20, outlierThreshold: 2.0 }     // memory
+  private configs: {
+    timing: { maxSamples: number; outlierThreshold: number };
+    geometry: { maxSamples: number; outlierThreshold: number };
+    memory: { maxSamples: number; outlierThreshold: number };
   };
+  
+  constructor(customConfig?: SmoothingConfig) {
+    this.configs = {
+      timing: { 
+        maxSamples: 10, 
+        outlierThreshold: 2.5,
+        ...(customConfig?.timing || {})
+      },
+      geometry: { 
+        maxSamples: 5, 
+        outlierThreshold: 3.0,
+        ...(customConfig?.geometry || {})
+      },
+      memory: { 
+        maxSamples: 20, 
+        outlierThreshold: 2.0,
+        ...(customConfig?.memory || {})
+      }
+    };
+  }
   
   getSmoothed(metric: string, value: number): number {
     if (!this.smoothers.has(metric)) {
@@ -121,9 +146,9 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const frameCount = useRef(0);
   const lastFrameTime = useRef(0);
   const frameTimeSmoothing = useRef(new FrameTimeSmoothing());
-  const metricSmoothing = useRef(new MetricSmoothing());
+  const metricSmoothing = useRef<MetricSmoothing>(new MetricSmoothing());
   const vsyncDetector = useRef(new VSyncDetector(options.vsync !== false));
-  //const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
+  const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
 
   const frameAccumulator = useRef(new GeometryAccumulator());
   const peakStats = useRef(new GeometryAccumulator());
@@ -139,6 +164,13 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const isWebGPU = !!(gl && (gl as any).isWebGPURenderer);
   refs.webGPUState.current.isWebGPU = isWebGPU;
   refs.stats.current.isWebGPU = isWebGPU;
+  
+  // Initialize metric smoothing with custom config if provided
+  useEffect(() => {
+    if (typeof options.smoothing === 'object' && options.smoothing.enabled !== false) {
+      metricSmoothing.current = new MetricSmoothing(options.smoothing);
+    }
+  }, [options.smoothing]);
   
   useFrame(() => {
     const currentTime = performance.now();
@@ -431,8 +463,13 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       lastUpdate = now;
       const stats = refs.stats.current;
       
-      // Apply smoothing to all metrics if enabled
-      const smoothingEnabled = options.smoothing !== false;
+      // Parse smoothing options
+      let smoothingEnabled = false;
+      if (options.smoothing === true) {
+        smoothingEnabled = true;
+      } else if (typeof options.smoothing === 'object') {
+        smoothingEnabled = options.smoothing.enabled !== false;
+      }
       
       const smoothedStats = {
         fps: stats.fps, // Already smoothed in useFrame

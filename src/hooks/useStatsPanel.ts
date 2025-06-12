@@ -51,7 +51,8 @@ export function useStatsPanel(options: StatsOptions = {}) {
     vsync: options.vsync,
     trackCompute: options.trackCompute,
     updateInterval: options.updateInterval,
-    aggressiveCount: options.aggressiveCount
+    aggressiveCount: options.aggressiveCount,
+    smoothing: options.smoothing
   });
 
   useEffect(() => {

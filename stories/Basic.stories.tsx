@@ -35,6 +35,14 @@ interface StoryArgs {
   orderDrawCalls: number;
   showVSync: boolean;
   orderVSync: number;
+  // Smoothing props
+  smoothingEnabled: boolean;
+  smoothingTimingSamples: number;
+  smoothingTimingThreshold: number;
+  smoothingGeometrySamples: number;
+  smoothingGeometryThreshold: number;
+  smoothingMemorySamples: number;
+  smoothingMemoryThreshold: number;
 }
 
 function Scene({ args }: { args: StoryArgs }) {
@@ -48,11 +56,36 @@ function Scene({ args }: { args: StoryArgs }) {
     showTriangles, orderTriangles,
     showDrawCalls, orderDrawCalls,
     showVSync, orderVSync,
+    smoothingEnabled,
+    smoothingTimingSamples,
+    smoothingTimingThreshold,
+    smoothingGeometrySamples,
+    smoothingGeometryThreshold,
+    smoothingMemorySamples,
+    smoothingMemoryThreshold,
     ...restArgs
   } = args;
 
+  // Build smoothing config
+  const smoothingConfig = smoothingEnabled ? {
+    enabled: true,
+    timing: { 
+      maxSamples: smoothingTimingSamples, 
+      outlierThreshold: smoothingTimingThreshold 
+    },
+    geometry: { 
+      maxSamples: smoothingGeometrySamples, 
+      outlierThreshold: smoothingGeometryThreshold 
+    },
+    memory: { 
+      maxSamples: smoothingMemorySamples, 
+      outlierThreshold: smoothingMemoryThreshold 
+    }
+  } : false;
+
   useStatsPanel({
     ...restArgs,
+    smoothing: smoothingConfig,
     stats: {
       fps: { show: showFPS, order: orderFPS },
       ms: { show: showMS, order: orderMS },
@@ -146,6 +179,35 @@ const meta: Meta<StoryArgs> = {
       control: 'boolean',
       description: 'Use compact display mode'
     },
+    // Smoothing controls
+    smoothingEnabled: {
+      control: 'boolean',
+      description: 'Enable metric smoothing'
+    },
+    smoothingTimingSamples: {
+      control: { type: 'range', min: 3, max: 30, step: 1 },
+      description: 'Samples for timing metrics (GPU/CPU)'
+    },
+    smoothingTimingThreshold: {
+      control: { type: 'range', min: 1.0, max: 5.0, step: 0.5 },
+      description: 'Outlier threshold for timing metrics'
+    },
+    smoothingGeometrySamples: {
+      control: { type: 'range', min: 3, max: 20, step: 1 },
+      description: 'Samples for geometry metrics (triangles/draws)'
+    },
+    smoothingGeometryThreshold: {
+      control: { type: 'range', min: 1.0, max: 5.0, step: 0.5 },
+      description: 'Outlier threshold for geometry metrics'
+    },
+    smoothingMemorySamples: {
+      control: { type: 'range', min: 5, max: 50, step: 5 },
+      description: 'Samples for memory metrics'
+    },
+    smoothingMemoryThreshold: {
+      control: { type: 'range', min: 1.0, max: 5.0, step: 0.5 },
+      description: 'Outlier threshold for memory metrics'
+    },
     // Individual stat controls
     showFPS: { control: 'boolean', description: 'Show FPS stat' },
     orderFPS: { control: { type: 'number', min: 0, max: 10 }, description: 'FPS display order' },
@@ -184,6 +246,13 @@ export const Default: Story = {
     fontSize: 12,
     graphHeight: 0,
     compact: false,
+    smoothingEnabled: true,
+    smoothingTimingSamples: 10,
+    smoothingTimingThreshold: 2.5,
+    smoothingGeometrySamples: 5,
+    smoothingGeometryThreshold: 3.0,
+    smoothingMemorySamples: 20,
+    smoothingMemoryThreshold: 2.0,
     showFPS: true,
     orderFPS: 0,
     showMS: true,
@@ -202,6 +271,85 @@ export const Default: Story = {
     orderDrawCalls: 7,
     showVSync: true,
     orderVSync: 8,
+  }
+};
+
+export const NoSmoothing: Story = {
+  name: 'No Smoothing (Raw Values)',
+  args: {
+    ...Default.args,
+    smoothingEnabled: false,
+    graphHeight: 48,
+    showMinMax: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Shows raw, unsmoothed values. Notice the jitter in GPU/CPU timings and geometry counts.'
+      }
+    }
+  }
+};
+
+export const AggressiveSmoothing: Story = {
+  name: 'Aggressive Smoothing',
+  args: {
+    ...Default.args,
+    smoothingEnabled: true,
+    smoothingTimingSamples: 20,      // More samples for very smooth timing
+    smoothingTimingThreshold: 2.0,   // Lower threshold, more aggressive outlier rejection
+    smoothingGeometrySamples: 15,    // More samples for geometry
+    smoothingGeometryThreshold: 2.5, // Aggressive outlier rejection
+    smoothingMemorySamples: 40,      // Many samples for memory
+    smoothingMemoryThreshold: 1.5,   // Very aggressive outlier rejection
+    graphHeight: 48,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Uses aggressive smoothing settings for very stable readings. Good for on-demand rendering or scenes with sporadic updates.'
+      }
+    }
+  }
+};
+
+export const LightSmoothing: Story = {
+  name: 'Light Smoothing',
+  args: {
+    ...Default.args,
+    smoothingEnabled: true,
+    smoothingTimingSamples: 5,       // Fewer samples, more responsive
+    smoothingTimingThreshold: 4.0,   // Higher threshold, less outlier rejection
+    smoothingGeometrySamples: 3,     // Very few samples
+    smoothingGeometryThreshold: 4.5, // Minimal outlier rejection
+    smoothingMemorySamples: 10,      // Fewer memory samples
+    smoothingMemoryThreshold: 4.0,   // Less aggressive
+    graphHeight: 48,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Light smoothing that preserves more real-time responsiveness while still reducing noise.'
+      }
+    }
+  }
+};
+
+export const SmoothingComparison: Story = {
+  name: 'Smoothing Comparison (Toggle in Controls)',
+  args: {
+    ...Default.args,
+    smoothingEnabled: true,
+    graphHeight: 48,
+    showMinMax: true,
+    updateInterval: 50, // Faster updates to see difference
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Toggle the "smoothingEnabled" control to see the difference between smoothed and raw values in real-time. Watch GPU/CPU timing stability.'
+      }
+    }
   }
 };
 

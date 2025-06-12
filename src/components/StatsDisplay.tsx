@@ -9,9 +9,12 @@ export function StatsDisplay() {
   const [stats, setStats] = useState(unifiedStore.get());
   const throttleTimerRef = useRef<number | null>(null);
   const latestStatsRef = useRef<StatsData>(stats);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef<number>(Date.now());
 
   const defaultOptions: StatsOptions = useMemo(() => ({
-    updateInterval: 100,
+    updateInterval: 50,
+    smoothing: true,
     targetFramerate: null,
     compact: false,
     showColors: true,
@@ -47,24 +50,51 @@ export function StatsDisplay() {
   }, [context, defaultOptions]);
 
   useEffect(() => {
-    const throttledSetStats = (newStats: StatsData) => {
-      latestStatsRef.current = newStats;
+    let unsubscribe: (() => void) | null = null;
+    
+    const connect = () => {
+      const throttledSetStats = (newStats: StatsData) => {
+        latestStatsRef.current = newStats;
+        lastUpdateRef.current = Date.now();
+        
+        if (!throttleTimerRef.current) {
+          throttleTimerRef.current = setTimeout(() => {
+            setStats(latestStatsRef.current);
+            throttleTimerRef.current = null;
+          }, 16) as unknown as number;
+        }
+      };
       
-      if (!throttleTimerRef.current) {
-        throttleTimerRef.current = setTimeout(() => {
-          setStats(latestStatsRef.current);
-          throttleTimerRef.current = null;
-        }, 16) as unknown as number;
-      }
+      unsubscribe = unifiedStore.subscribe(throttledSetStats);
     };
     
-    const unsubscribe = unifiedStore.subscribe(throttledSetStats);
+    // Initial connection
+    connect();
+    
+    // Check for stale data and reconnect if needed
+    const checkConnection = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
+      if (timeSinceLastUpdate > 1000) { // No update for 1 second
+        console.log('Stats appear stale, attempting reconnection...');
+        if (unsubscribe) {
+          unsubscribe();
+        }
+        connect();
+      }
+    }, 1000);
     
     return () => {
-      unsubscribe();
+      clearInterval(checkConnection);
+      if (unsubscribe) {
+        unsubscribe();
+      }
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current);
         throttleTimerRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
     };
   }, []);
