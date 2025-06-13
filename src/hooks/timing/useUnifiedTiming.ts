@@ -148,7 +148,6 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const frameTimeSmoothing = useRef(new FrameTimeSmoothing());
   const metricSmoothing = useRef<MetricSmoothing>(new MetricSmoothing());
   const vsyncDetector = useRef(new VSyncDetector(options.vsync !== false));
-  const lastWebGPUStats = useRef({ drawCalls: 0, triangles: 0 });
 
   const frameAccumulator = useRef(new GeometryAccumulator());
   const peakStats = useRef(new GeometryAccumulator());
