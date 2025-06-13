@@ -254,6 +254,10 @@ useStatsPanel({
 });
 ```
 
+### Smoothing Parameters
+TBD
+
+
 ### Folder Organization
 Group stats in a Leva folder:
 
