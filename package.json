@@ -1,6 +1,6 @@
 {
   "name": "leva-r3f-stats",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "type": "module",
   "description": "A small plugin to display React Three Fiber stats in Leva",
   "author": "Jeffrey Castellano",
@@ -24,7 +24,8 @@
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "NODE_ENV=production rollup -c",
