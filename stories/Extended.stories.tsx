@@ -11,6 +11,7 @@ interface StoryArgs {
   targetFramerate: number | null;
   showColors: boolean;
   defaultColor: string;
+  gpuPercentage: boolean;
   showMinMax: boolean;
   vsync: boolean;
   meshCount: number;
@@ -128,6 +129,7 @@ export const Default: StoryObj<StoryArgs> = {
     targetFramerate: null,
     showColors: true,
     defaultColor: '#999999',
+    gpuPercentage: false,
     showMinMax: true,
     vsync: true,
     meshCount: 10,
@@ -140,6 +142,7 @@ export const ManyMeshes: StoryObj<StoryArgs> = {
   args: {
     updateInterval: 100,
     targetFramerate: 144,
+    gpuPercentage: false,
     showColors: true,
     defaultColor: '#999999',
     showMinMax: true,

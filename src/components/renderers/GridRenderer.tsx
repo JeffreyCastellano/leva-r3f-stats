@@ -17,7 +17,9 @@ export function GridRenderer({ stats, options, configs }: GridRendererProps) {
   return (
     <div style={styles.statsContainer(validColumns, fontSize)}>
       {configs.map(config => {
-        const value = stats[config.key] as number;
+        const value = config.key === 'gpu' && options.gpuPercentage 
+        ? (stats.gpuPercent || 0)
+        : (stats[config.key] as number);
         const buffer = unifiedStore.buffers[config.key as keyof typeof unifiedStore.buffers];
         
         if (value === null || value === undefined) return null;

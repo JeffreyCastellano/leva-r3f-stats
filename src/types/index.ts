@@ -1,8 +1,8 @@
 export interface SmoothingConfig {
   enabled?: boolean;
-  aggressive?: boolean; // More smoothing when true
+  aggressive?: boolean;
   custom?: {
-    [key: string]: number; // Custom alpha values
+    [key: string]: number;
   };
 }
 
@@ -27,9 +27,10 @@ export interface StatsOptions {
   graphBackgroundColor?: string;
   graphGridColor?: string;
   trianglesBudget?: number;
+  gpuPercentage?: boolean;
   smoothing?: boolean | SmoothingConfig;
   drawCallsBudget?: number;
-  showFullLabels?: boolean;  // New: show full labels in graph mode
+  showFullLabels?: boolean;
   stats?: {
     fps?: { show?: boolean; order?: number };
     ms?: { show?: boolean; order?: number };
@@ -52,6 +53,7 @@ export interface StatsData {
   compute: number;
   triangles: number;
   drawCalls: number;
+  gpuPercent?: number;
   vsync: number | null;
   isWebGPU: boolean;
   gpuAccurate: boolean;

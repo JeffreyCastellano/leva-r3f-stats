@@ -29,8 +29,9 @@ export function GraphRenderer({ stats, options, configs }: GraphRendererProps) {
       {graphConfigs.map(config => {
         const buffer = unifiedStore.buffers[config.key as keyof typeof unifiedStore.buffers];
         if (!buffer) return null;
-
-        const value = stats[config.key] as number;
+        const value = config.key === 'gpu' && options.gpuPercentage 
+        ? (stats.gpuPercent || 0)
+        : (stats[config.key] as number);
         const color = options.showColors !== false && config.color 
           ? config.color(value, null as any) 
           : options.defaultColor || '#999';

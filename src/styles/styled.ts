@@ -15,6 +15,8 @@ export const styles = {
     width: '100%',
     fontFamily: 'monospace',
     fontSize: `${fontSize}px`,
+    boxSizing: 'border-box',  // Add this
+    overflow: 'hidden',        // Add this
   }),
 
   statsCompactWrapper: (columns: number, fontSize: number): CSSProperties => ({
@@ -33,6 +35,8 @@ export const styles = {
     gap: '8px',
     padding: '4px',
     width: '100%',
+    boxSizing: 'border-box',  // Add this
+    overflow: 'hidden',        // Add this
   }),
 
   statItem: {

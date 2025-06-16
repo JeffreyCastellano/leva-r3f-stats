@@ -13,6 +13,7 @@ interface StoryArgs {
   defaultColor: string;
   graphHeight: number;
   trackCompute: boolean;
+  gpuPercentage: boolean;
   order: number;
   fontSize: number;
 }
@@ -117,6 +118,7 @@ export const MicroGraphs: StoryObj<StoryArgs> = {
     defaultColor: '#999999',
     graphHeight: 24,
     trackCompute: false,
+    gpuPercentage: false,
     order: -1,
     fontSize: 9,
   }
@@ -130,6 +132,7 @@ export const CompactGraphs: StoryObj<StoryArgs> = {
     defaultColor: '#999999',
     graphHeight: 32,
     trackCompute: false,
+    gpuPercentage: false,
     order: -1,
     fontSize: 11,
   }

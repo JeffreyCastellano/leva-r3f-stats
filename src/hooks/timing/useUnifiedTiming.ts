@@ -483,10 +483,9 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         smoothingEnabled = options.smoothing.enabled !== false;
       }
       
-      // Apply smoothing to all metrics
       const smoothedStats = {
-        fps: stats.fps, // Already smoothed in useFrame
-        ms: stats.ms,   // Already smoothed in useFrame
+        fps: stats.fps,
+        ms: stats.ms,
         memory: smoothingEnabled ? statsSmoothing.current.smooth('memory', stats.memory) : stats.memory,
         gpu: smoothingEnabled && stats.gpu > 0 ? statsSmoothing.current.smooth('gpu', stats.gpu) : stats.gpu,
         compute: smoothingEnabled && stats.compute > 0 ? statsSmoothing.current.smooth('compute', stats.compute) : stats.compute,
@@ -496,13 +495,16 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         isWebGPU: stats.isWebGPU,
         gpuAccurate: stats.gpuAccurate
       };
+
+      const gpuPercent = smoothedStats.ms > 0 ? (smoothedStats.gpu / smoothedStats.ms) * 100 : 0;
+
       
-      // Calculate CPU after GPU smoothing
       const cpuTime = smoothedStats.gpuAccurate && smoothedStats.gpu > 0 ? 
-        Math.max(0, smoothedStats.ms - smoothedStats.gpu) : 0;
+      Math.max(0, smoothedStats.ms - smoothedStats.gpu) : 0;
       
       unifiedStore.update({
         ...smoothedStats,
+        gpuPercent: smoothingEnabled ? statsSmoothing.current.smooth('gpuPercent', gpuPercent) : gpuPercent,
         cpu: smoothingEnabled && cpuTime > 0 ? statsSmoothing.current.smooth('cpu', cpuTime) : cpuTime
       });
       

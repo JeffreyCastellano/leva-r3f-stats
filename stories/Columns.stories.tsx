@@ -10,6 +10,7 @@ interface StoryArgs {
   columnsCompact: number;
   compact: boolean;
   graphHeight: number;
+  gpuPercentage: boolean;
   fontSize: number;
   showFullLabels: boolean;
 }
@@ -88,6 +89,7 @@ export const CustomColumns: StoryObj<StoryArgs> = {
     compact: false,
     graphHeight: 0,
     fontSize: 10,
+    gpuPercentage: false,
     showFullLabels: false,
   }
 };
@@ -98,8 +100,9 @@ export const ThreeColumnLayout: StoryObj<StoryArgs> = {
     columnsCompact: 3,
     compact: false,
     graphHeight: 32,
-    fontSize: 12,
-    showFullLabels: true,
+    gpuPercentage: false,
+    fontSize: 10,
+    showFullLabels: false,
   }
 };
 
@@ -109,6 +112,7 @@ export const SingleColumn: StoryObj<StoryArgs> = {
     columnsCompact: 1,
     compact: true,
     graphHeight: 0,
+    gpuPercentage: false,
     fontSize: 10,
     showFullLabels: false,
   }
@@ -120,6 +124,7 @@ export const WideCompact: StoryObj<StoryArgs> = {
     columnsCompact: 6,
     compact: true,
     graphHeight: 0,
+    gpuPercentage: false,
     fontSize: 8,
     showFullLabels: false,
   }

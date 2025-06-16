@@ -10,6 +10,7 @@ interface StoryArgs {
   targetFramerate: number | null;
   showColors: boolean;
   defaultColor: string;
+  gpuPercentage: boolean;
   fontSize: number;
   vsync: boolean;
   order: number;
@@ -105,6 +106,7 @@ export const SmallFont: StoryObj<StoryArgs> = {
     updateInterval: 100,
     targetFramerate: null,
     showColors: true,
+    gpuPercentage: false,
     defaultColor: '#999999',
     fontSize: 9,
     vsync: true,
@@ -119,6 +121,7 @@ export const LargeFont: StoryObj<StoryArgs> = {
     showColors: true,
     defaultColor: '#999999',
     fontSize: 13,
+    gpuPercentage: false,
     vsync: true,
     order: -1
   }

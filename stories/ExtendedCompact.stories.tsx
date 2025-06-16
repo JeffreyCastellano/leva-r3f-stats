@@ -17,6 +17,7 @@ interface StoryArgs {
   meshType: 'box' | 'sphere' | 'cone';
   order: number;
   orderFPS: number;
+  gpuPercentage: boolean;
   orderMS: number;
   orderMemory: number;
   orderGPU: number;
@@ -169,6 +170,7 @@ export const Default: StoryObj<StoryArgs> = {
     vsync: true,
     meshCount: 10,
     meshType: 'box',
+    gpuPercentage: false,
     order: -1,
     orderFPS: 0,
     orderMS: 1,
@@ -186,6 +188,7 @@ export const ReorderedStats: StoryObj<StoryArgs> = {
     showColors: true,
     defaultColor: '#999999',
     fontSize: 10,
+    gpuPercentage: false,
     vsync: true,
     meshCount: 15,
     meshType: 'sphere',

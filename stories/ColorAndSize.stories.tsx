@@ -12,6 +12,7 @@ interface StoryArgs {
   fontSize: number;
   compact: boolean;
   graphHeight: number;
+  gpuPercentage: boolean;
   graphBackgroundColor: string;
   graphGridColor: string;
   showMinMax: boolean;
@@ -19,6 +20,7 @@ interface StoryArgs {
   targetFramerate: number | null;
   trianglesBudget: number;
   drawCallsBudget: number;
+  showDrawCalls: boolean;
   simulateLoad: 'none' | 'light' | 'medium' | 'heavy';
   columns: number;
   columnsCompact: number;
@@ -104,7 +106,7 @@ function Scene({ args }: { args: StoryArgs }) {
       gpu: { show: true, order: 3 },
       cpu: { show: true, order: 4 },
       triangles: { show: true, order: 5 },
-      drawCalls: { show: true, order: 6 },
+      drawCalls: { show: statsOptions.showDrawCalls, order: 6 },
       compute: { show: false },
       vsync: { show: false }
     }
@@ -311,6 +313,7 @@ export const PerformanceColors: Story = {
     fontSize: 12,
     compact: false,
     graphHeight: 0,
+    gpuPercentage: false,
     graphBackgroundColor: '#181c20',
     graphGridColor: '#333',
     showMinMax: true,
@@ -332,6 +335,7 @@ export const CustomDefaultColor: Story = {
     fontSize: 14,
     compact: false,
     graphHeight: 0,
+    gpuPercentage: false,
     graphBackgroundColor: '#181c20',
     graphGridColor: '#333',
     showMinMax: true,
@@ -353,6 +357,7 @@ export const CustomGraphColors: Story = {
     fontSize: 11,
     compact: false,
     graphHeight: 40,
+    gpuPercentage: false,
     graphBackgroundColor: '#392a44',
     graphGridColor: '#443351',
     showMinMax: false,
@@ -374,6 +379,7 @@ export const DarkThemeGraphs: Story = {
     fontSize: 10,
     compact: false,
     graphHeight: 48,
+    gpuPercentage: false,
     graphBackgroundColor: '#00000040',
     graphGridColor: '#00000050',
     showMinMax: false,
@@ -395,6 +401,7 @@ export const LightThemeGraphs: Story = {
     fontSize: 12,
     compact: false,
     graphHeight: 36,
+    gpuPercentage: false,
     graphBackgroundColor: '#f5f5f5',
     graphGridColor: '#ddd',
     showMinMax: false,
@@ -413,19 +420,21 @@ export const SmallCompactText: Story = {
   args: {
     showColors: true,
     defaultColor: '#999999',
-    fontSize: 8,
+    fontSize: 7,
     compact: true,
     graphHeight: 0,
+    gpuPercentage: false,
     graphBackgroundColor: '#181c20',
     graphGridColor: '#333',
     showMinMax: false,
+    showDrawCalls: false,
     showFullLabels: false,
     targetFramerate: 60,
     trianglesBudget: 50000,
     drawCallsBudget: 50,
     simulateLoad: 'medium',
     columns: 2,
-    columnsCompact: 6,
+    columnsCompact: 5,
   }
 };
 
@@ -437,6 +446,7 @@ export const LargeFontGraphs: Story = {
     fontSize: 16,
     compact: false,
     graphHeight: 48,
+    gpuPercentage: false,
     graphBackgroundColor: '#1a1a1a',
     graphGridColor: '#444',
     showMinMax: false,

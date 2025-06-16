@@ -36,8 +36,25 @@ export function GraphCanvas({
   const animationFrameRef = useRef<number>();
   
   const labelFontSize = Math.max(8, fontSize - 1);
-  const displayLabel = showFullLabel && fullLabel ? fullLabel : label;
   const formattedValue = `${currentValue.toFixed(1)}${unit}`;
+
+  // Parse label and suffix from fullLabel
+  const labelParts = useMemo(() => {
+    if (showFullLabel && fullLabel) {
+      // Check if fullLabel contains a suffix pattern (e.g., "FPS MAX: 120")
+      const match = fullLabel.match(/^(.+?)(\s+MAX:.+)?$/);
+      if (match) {
+        return {
+          main: match[1].trim(),
+          suffix: match[2]?.trim() || ''
+        };
+      }
+    }
+    return {
+      main: label,
+      suffix: ''
+    };
+  }, [showFullLabel, fullLabel, label]);
 
   const dashedGridPattern = useMemo(() => {
     const dashLength = 3;
@@ -81,16 +98,27 @@ export function GraphCanvas({
       left: '3px',
       fontFamily: 'monospace',
       pointerEvents: 'none' as const,
-      zIndex: 3
+      zIndex: 3,
+      maxWidth: '95%',  // Prevent overflow
     },
     label: {
       fontSize: `${labelFontSize}px`,
       color: '#999',
       lineHeight: `${labelFontSize + 1}px`,
-      maxWidth: showFullLabel ? '90%' : undefined,
-      overflow: showFullLabel ? 'hidden' : undefined,
-      textOverflow: showFullLabel ? 'ellipsis' : undefined,
-      whiteSpace: showFullLabel ? 'nowrap' as const : undefined,
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: '4px',
+    },
+    labelMain: {
+      flexShrink: 0,
+    },
+    labelSuffix: {
+      fontSize: `${Math.max(7, labelFontSize - 1)}px`,
+      opacity: 0.7,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap' as const,
+      flexShrink: 1,
     },
     value: {
       fontSize: `${fontSize}px`,
@@ -98,7 +126,7 @@ export function GraphCanvas({
       color,
       lineHeight: `${fontSize + 2}px`
     }
-  }), [height, backgroundColor, gridColor, labelFontSize, fontSize, color, showFullLabel, dashedGridPattern]);
+  }), [height, backgroundColor, gridColor, labelFontSize, fontSize, color, dashedGridPattern]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -177,7 +205,12 @@ export function GraphCanvas({
       <canvas ref={canvasRef} style={styles.canvas} />
       <div style={styles.gradient} />
       <div style={styles.overlay}>
-        <div style={styles.label}>{displayLabel}</div>
+        <div style={styles.label}>
+          <span style={styles.labelMain}>{labelParts.main}</span>
+          {labelParts.suffix && (
+            <span style={styles.labelSuffix}>{labelParts.suffix}</span>
+          )}
+        </div>
         <div style={styles.value}>{formattedValue}</div>
       </div>
     </div>

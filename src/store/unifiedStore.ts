@@ -26,10 +26,11 @@ class UnifiedStore {
     gpuAccurate: false
   };
   
-  public buffers: Record<BufferKey, RingBuffer> = {
+  public buffers: Record<BufferKey | 'gpuPercent', RingBuffer> = {
     fps: new RingBuffer(100),
     ms: new RingBuffer(100),
     memory: new RingBuffer(100),
+    gpuPercent: new RingBuffer(100),
     gpu: new RingBuffer(100),
     cpu: new RingBuffer(100),
     compute: new RingBuffer(100),

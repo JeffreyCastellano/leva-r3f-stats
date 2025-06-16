@@ -33,7 +33,7 @@ export function stats(options: StatsOptions = {}): ReturnType<typeof statsPlugin
       compute: { show: true, order: 5 },
       triangles: { show: true, order: 6 },
       drawCalls: { show: true, order: 7 },
-      vsync: { show: true, order: 8 }
+      vsync: { show: false, order: 8 }
     },
     ...options
   });

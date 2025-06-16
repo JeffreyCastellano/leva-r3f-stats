@@ -1,23 +1,28 @@
 import { StatConfig, StatsOptions, Thresholds } from '../types';
 import { unifiedStore } from '../store/unifiedStore';
 
-const LABELS = {
+const getLabels = (options: StatsOptions) => ({
   fps: 'FPS',
   ms: 'MS',
   memory: 'MEM',
-  gpu: 'GPU',
+  gpu: options.gpuPercentage ? 'GPU%' : 'GPU',  // Dynamic label
   cpu: 'CPU',
   compute: 'COMP',
   triangles: 'TRI',
   drawCalls: 'DRW',
   vsync: 'VSYNC'
-};
+});
 
 const FORMATS = {
   fps: (v: number) => v.toFixed(0),
   ms: (v: number) => v.toFixed(1),
   memory: (v: number) => v.toFixed(0),
-  gpu: (v: number) => v.toFixed(1),
+  gpu: (v: number, options?: { gpuPercentage?: boolean }) => {
+    if (options?.gpuPercentage) {
+      return v.toFixed(0) + '%';
+    }
+    return v.toFixed(1);
+  },
   cpu: (v: number) => v.toFixed(1),
   compute: (v: number) => v.toFixed(1),
   triangles: (v: number) => {
@@ -27,7 +32,7 @@ const FORMATS = {
     return v.toString();
   },
   drawCalls: (v: number) => v.toFixed(0),
-  vsync: (v: number | null) => v ? `${v}Hz` : 'N/A'
+  vsync: (v: number | null) => v ? `${v}Hz` : 'Detecting...'
 };
 
 const getColor = (value: number, good: number, bad: number, invert = false): string => {
@@ -60,7 +65,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
 export function createStatConfigs(options: StatsOptions, thresholds: Thresholds = DEFAULT_THRESHOLDS): StatConfig[] {
   const stats = options.stats || {};
   const peaks = unifiedStore.getPeaks();
-  
+  const LABELS = getLabels(options); 
   return Object.entries(LABELS)
     .filter(([key]) => {
       if (key === 'compute' && !options.trackCompute) return false;
@@ -87,6 +92,20 @@ export function createStatConfigs(options: StatsOptions, thresholds: Thresholds 
           labelSuffix = `MAX: ${thresholds.targetMS.toFixed(1)}ms`;
           break;
         case 'gpu':
+        if (options.gpuPercentage) {
+          color = (v: number) => {
+            // Color based on percentage thresholds
+            if (v > 90) return '#ff6b6b';  // Critical: >90%
+            if (v > 70) return '#ffd93d';  // Warning: >70%
+            return '#51cf66';  // Good: <70%
+          };
+          graphMax = 100;  // Percentage max
+          labelSuffix = '';
+        } else {
+          color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
+          graphMax = thresholds.targetMS * 2;
+        }
+        break;
         case 'cpu':
           color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
           graphMax = thresholds.targetMS * 2;
@@ -133,8 +152,9 @@ export function getVisibleConfigs(
   return configs.filter(config => {
     if (compact && !config.showInCompact) return false;
     if (config.key === 'compute' && (!stats.isWebGPU || stats.compute === 0)) return false;
-    if (config.key === 'vsync' && !stats.vsync) return false;
-    if (config.key === 'cpu' && !stats.gpuAccurate) return false; // Hide CPU when no accurate GPU timing
+    // Remove this line that hides vsync panel:
+    // if (config.key === 'vsync' && !stats.vsync) return false;
+    if (config.key === 'cpu' && !stats.gpuAccurate) return false;
     return true;
   });
 }

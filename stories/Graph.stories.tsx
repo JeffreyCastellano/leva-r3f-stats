@@ -19,6 +19,7 @@ interface StoryArgs {
   fontSize: number;
   showFPS: boolean;
   showMS: boolean;
+  gpuPercentage: boolean;
   showMemory: boolean;
   showGPU: boolean;
   showCPU: boolean;
@@ -193,6 +194,7 @@ export const LargeGraphs: StoryObj<StoryArgs> = {
     showFPS: true,
     showMS: true,
     showMemory: false,
+    gpuPercentage: false,
     showGPU: true,
     showCPU: false,
   }
@@ -213,6 +215,7 @@ export const MinimalGraphs: StoryObj<StoryArgs> = {
     showFPS: true,
     showMS: true,
     showMemory: false,
+    gpuPercentage: false,
     showGPU: false,
     showCPU: false,
   }

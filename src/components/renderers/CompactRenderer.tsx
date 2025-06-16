@@ -15,8 +15,9 @@ export function CompactRenderer({ stats, options, configs }: CompactRendererProp
   return (
     <div style={styles.statsCompactWrapper(validColumns, fontSize)}>
       {configs.map(config => {
-        const value = stats[config.key] as number;
-        
+        const value = config.key === 'gpu' && options.gpuPercentage 
+        ? (stats.gpuPercent || 0)
+        : (stats[config.key] as number);
         if (value === undefined || value === null || Number.isNaN(value)) {
           return null;
         }
