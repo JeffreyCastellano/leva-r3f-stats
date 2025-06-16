@@ -1,3 +1,4 @@
+// src/hooks/timing/useUnifiedTiming.ts
 import { useEffect, useRef } from 'react';
 import { useFrame, addAfterEffect, useThree } from '@react-three/fiber';
 import { TimingRefs } from '../utils/timing-state';
@@ -6,9 +7,10 @@ import { VSyncDetector } from '../../utils/vsync';
 
 interface SmoothingConfig {
   enabled?: boolean;
-  timing?: { maxSamples?: number; outlierThreshold?: number };
-  geometry?: { maxSamples?: number; outlierThreshold?: number };
-  memory?: { maxSamples?: number; outlierThreshold?: number };
+  aggressive?: boolean;
+  custom?: {
+    [key: string]: number;
+  };
 }
 
 interface UnifiedTimingOptions {
@@ -33,111 +35,112 @@ class GeometryAccumulator {
   }
 }
 
-class FrameTimeSmoothing {
-  private samples: number[] = [];
-  private readonly maxSamples: number;
-  private readonly outlierThreshold: number;
+class EMASmoothing {
+  private value: number = 0;
+  private initialized: boolean = false;
   
-  constructor(config = { maxSamples: 10, outlierThreshold: 2.5 }) {
-    this.maxSamples = config.maxSamples;
-    this.outlierThreshold = config.outlierThreshold;
-  }
+  constructor(private alpha: number = 0.1) {}
   
-  add(frameTime: number): number {
-    // Add to samples
-    this.samples.push(frameTime);
-    if (this.samples.length > this.maxSamples) {
-      this.samples.shift();
+  update(newValue: number): number {
+    if (!this.initialized) {
+      this.value = newValue;
+      this.initialized = true;
+      return newValue;
     }
     
-    // Not enough samples yet
-    if (this.samples.length < 3) {
-      return frameTime;
-    }
-    
-    // Calculate median and standard deviation
-    const sorted = [...this.samples].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    
-    // Calculate MAD (Median Absolute Deviation) for robust outlier detection
-    const deviations = sorted.map(x => Math.abs(x - median));
-    const mad = deviations.sort((a, b) => a - b)[Math.floor(deviations.length / 2)];
-    const threshold = median + (mad * this.outlierThreshold);
-    
-    // If current frame is an outlier, use median instead
-    if (frameTime > threshold && this.samples.length >= 5) {
-      return median;
-    }
-    
-    // Use weighted average of recent samples, giving more weight to non-outliers
-    const weights = this.samples.map(sample => 
-      sample > threshold ? 0.1 : 1.0
-    );
-    const weightSum = weights.reduce((a, b) => a + b, 0);
-    const weightedAvg = this.samples.reduce((sum, sample, i) => 
-      sum + (sample * weights[i]), 0
-    ) / weightSum;
-    
-    return weightedAvg;
+    // Exponential moving average
+    this.value = this.alpha * newValue + (1 - this.alpha) * this.value;
+    return this.value;
   }
   
   reset(): void {
-    this.samples = [];
+    this.initialized = false;
+    this.value = 0;
   }
 }
 
-class MetricSmoothing {
-  private smoothers: Map<string, FrameTimeSmoothing> = new Map();
-  private configs: {
-    timing: { maxSamples: number; outlierThreshold: number };
-    geometry: { maxSamples: number; outlierThreshold: number };
-    memory: { maxSamples: number; outlierThreshold: number };
-  };
+class NoiseFilter {
+  private lastValue: number = 0;
+  private threshold: number;
   
-  constructor(customConfig?: SmoothingConfig) {
-    this.configs = {
-      timing: { 
-        maxSamples: 10, 
-        outlierThreshold: 2.5,
-        ...(customConfig?.timing || {})
-      },
-      geometry: { 
-        maxSamples: 5, 
-        outlierThreshold: 3.0,
-        ...(customConfig?.geometry || {})
-      },
-      memory: { 
-        maxSamples: 20, 
-        outlierThreshold: 2.0,
-        ...(customConfig?.memory || {})
-      }
-    };
+  constructor(threshold: number = 0.01) {
+    this.threshold = threshold;
   }
   
-  getSmoothed(metric: string, value: number): number {
-    if (!this.smoothers.has(metric)) {
-      const config = this.getConfig(metric);
-      this.smoothers.set(metric, new FrameTimeSmoothing(config));
+  filter(value: number): number {
+    // Only update if change is significant
+    if (Math.abs(value - this.lastValue) > this.threshold) {
+      this.lastValue = value;
     }
-    
-    return this.smoothers.get(metric)!.add(value);
-  }
-  
-  private getConfig(metric: string) {
-    if (['ms', 'gpu', 'cpu', 'compute'].includes(metric)) {
-      return this.configs.timing;
-    }
-    if (['triangles', 'drawCalls'].includes(metric)) {
-      return this.configs.geometry;
-    }
-    if (metric === 'memory') {
-      return this.configs.memory;
-    }
-    return this.configs.timing; // default
+    return this.lastValue;
   }
   
   reset(): void {
-    this.smoothers.clear();
+    this.lastValue = 0;
+  }
+}
+
+class StatsSmoothing {
+  private smoothers = new Map<string, EMASmoothing>();
+  private filters = new Map<string, NoiseFilter>();
+  private alphas: { [key: string]: number };
+  
+  constructor(config?: SmoothingConfig) {
+    // Default alpha values (lower = more smoothing)
+    const defaultAlphas = {
+      fps: 0.05,      // Very smooth
+      ms: 0.05,       // Very smooth
+      memory: 0.02,   // Extra smooth (memory changes slowly)
+      gpu: 0.08,      // Smooth
+      cpu: 0.08,      // Smooth
+      compute: 0.08,  // Smooth
+      triangles: 0.15, // Less smooth (geometry can change quickly)
+      drawCalls: 0.15  // Less smooth
+    };
+    
+    // Apply aggressive smoothing if enabled
+    if (config?.aggressive) {
+      this.alphas = {
+        fps: 0.03,
+        ms: 0.03,
+        memory: 0.01,
+        gpu: 0.05,
+        cpu: 0.05,
+        compute: 0.05,
+        triangles: 0.1,
+        drawCalls: 0.1
+      };
+    } else {
+      this.alphas = defaultAlphas;
+    }
+    
+    // Apply custom alpha values if provided
+    if (config?.custom) {
+      Object.assign(this.alphas, config.custom);
+    }
+  }
+  
+  smooth(metric: string, value: number): number {
+    if (!this.smoothers.has(metric)) {
+      const alpha = this.alphas[metric] || 0.1;
+      this.smoothers.set(metric, new EMASmoothing(alpha));
+      
+      // Add noise filter with metric-specific thresholds
+      let threshold = 0.01;
+      if (metric === 'memory') threshold = 0.5;
+      else if (metric === 'triangles' || metric === 'drawCalls') threshold = 1;
+      
+      this.filters.set(metric, new NoiseFilter(threshold));
+    }
+    
+    // First smooth, then filter noise
+    const smoothed = this.smoothers.get(metric)!.update(value);
+    return this.filters.get(metric)!.filter(smoothed);
+  }
+  
+  reset(): void {
+    this.smoothers.forEach(smoother => smoother.reset());
+    this.filters.forEach(filter => filter.reset());
   }
 }
 
@@ -145,8 +148,8 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   const gl = useThree(state => state.gl);
   const frameCount = useRef(0);
   const lastFrameTime = useRef(0);
-  const frameTimeSmoothing = useRef(new FrameTimeSmoothing());
-  const metricSmoothing = useRef<MetricSmoothing>(new MetricSmoothing());
+  const frameTimeEMA = useRef(new EMASmoothing(0.05));
+  const statsSmoothing = useRef<StatsSmoothing>(new StatsSmoothing());
   const vsyncDetector = useRef(new VSyncDetector(options.vsync !== false));
 
   const frameAccumulator = useRef(new GeometryAccumulator());
@@ -166,8 +169,18 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
   
   // Initialize metric smoothing with custom config if provided
   useEffect(() => {
-    if (typeof options.smoothing === 'object' && options.smoothing.enabled !== false) {
-      metricSmoothing.current = new MetricSmoothing(options.smoothing);
+    let smoothingConfig: SmoothingConfig | undefined;
+    
+    if (typeof options.smoothing === 'object') {
+      smoothingConfig = options.smoothing;
+    } else if (options.smoothing === true) {
+      smoothingConfig = { enabled: true };
+    } else if (options.smoothing === false) {
+      smoothingConfig = { enabled: false };
+    }
+    
+    if (smoothingConfig?.enabled !== false) {
+      statsSmoothing.current = new StatsSmoothing(smoothingConfig);
     }
   }, [options.smoothing]);
   
@@ -177,7 +190,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     
     if (lastFrameTime.current > 0) {
       const delta = currentTime - lastFrameTime.current;
-      const smoothedDelta = frameTimeSmoothing.current.add(delta);
+      const smoothedDelta = frameTimeEMA.current.update(delta);
       stats.ms = smoothedDelta;
       stats.fps = 1000 / smoothedDelta;
     }
@@ -211,8 +224,8 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     // Function to initialize/reinitialize
     const initialize = () => {
       // Reset frame time smoothing on reinit
-      frameTimeSmoothing.current.reset();
-      metricSmoothing.current.reset();
+      frameTimeEMA.current.reset();
+      statsSmoothing.current.reset();
       
       if (!isWebGPU && (gl as any).info) {
         const info = (gl as any).info;
@@ -328,7 +341,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
           refs.stats.current.compute = info.compute.timestamp;
         }
 
-        // CHANGED: Always update triangles and draw calls (removed the if > 0 check)
+        // Always update triangles and draw calls
         refs.stats.current.triangles = webGPUFrameStats.current.frameTriangles;
         refs.stats.current.drawCalls = webGPUFrameStats.current.frameDrawCalls;
       } else {
@@ -391,13 +404,11 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       if (!isWebGPU && (gl as any).info) {
         if (options.aggressiveCount) {
           const accumulator = frameAccumulator.current;
-          // CHANGED: Always update, removed hasData() check
           refs.stats.current.triangles = accumulator.triangles;
           refs.stats.current.drawCalls = accumulator.drawCalls;
           accumulator.reset();
         } else {
           const peak = peakStats.current;
-          // CHANGED: Always update, removed > 0 check
           refs.stats.current.triangles = peak.triangles;
           refs.stats.current.drawCalls = peak.drawCalls;
           peak.reset();
@@ -427,7 +438,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         originalUpdate.current = null;
       }
       
-      // NEW: Restore WebGPU render method
+      // Restore WebGPU render method
       if (isWebGPU && webGPUFrameStats.current.originalRender) {
         (gl as any).render = webGPUFrameStats.current.originalRender;
         webGPUFrameStats.current.originalRender = null;
@@ -466,30 +477,33 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
       let smoothingEnabled = false;
       if (options.smoothing === true) {
         smoothingEnabled = true;
+      } else if (options.smoothing === false) {
+        smoothingEnabled = false;
       } else if (typeof options.smoothing === 'object') {
         smoothingEnabled = options.smoothing.enabled !== false;
       }
       
+      // Apply smoothing to all metrics
       const smoothedStats = {
         fps: stats.fps, // Already smoothed in useFrame
         ms: stats.ms,   // Already smoothed in useFrame
-        memory: smoothingEnabled ? metricSmoothing.current.getSmoothed('memory', stats.memory) : stats.memory,
-        gpu: smoothingEnabled ? metricSmoothing.current.getSmoothed('gpu', stats.gpu) : stats.gpu,
-        compute: smoothingEnabled ? metricSmoothing.current.getSmoothed('compute', stats.compute) : stats.compute,
-        triangles: smoothingEnabled ? metricSmoothing.current.getSmoothed('triangles', stats.triangles) : stats.triangles,
-        drawCalls: smoothingEnabled ? metricSmoothing.current.getSmoothed('drawCalls', stats.drawCalls) : stats.drawCalls,
+        memory: smoothingEnabled ? statsSmoothing.current.smooth('memory', stats.memory) : stats.memory,
+        gpu: smoothingEnabled && stats.gpu > 0 ? statsSmoothing.current.smooth('gpu', stats.gpu) : stats.gpu,
+        compute: smoothingEnabled && stats.compute > 0 ? statsSmoothing.current.smooth('compute', stats.compute) : stats.compute,
+        triangles: smoothingEnabled ? statsSmoothing.current.smooth('triangles', stats.triangles) : stats.triangles,
+        drawCalls: smoothingEnabled ? statsSmoothing.current.smooth('drawCalls', stats.drawCalls) : stats.drawCalls,
         vsync: stats.vsync,
         isWebGPU: stats.isWebGPU,
         gpuAccurate: stats.gpuAccurate
       };
       
       // Calculate CPU after GPU smoothing
-      const cpuTime = smoothedStats.gpuAccurate ? 
+      const cpuTime = smoothedStats.gpuAccurate && smoothedStats.gpu > 0 ? 
         Math.max(0, smoothedStats.ms - smoothedStats.gpu) : 0;
       
       unifiedStore.update({
         ...smoothedStats,
-        cpu: smoothingEnabled ? metricSmoothing.current.getSmoothed('cpu', cpuTime) : cpuTime
+        cpu: smoothingEnabled && cpuTime > 0 ? statsSmoothing.current.smooth('cpu', cpuTime) : cpuTime
       });
       
       if (mounted) {

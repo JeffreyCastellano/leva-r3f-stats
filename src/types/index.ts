@@ -1,9 +1,11 @@
 export interface SmoothingConfig {
   enabled?: boolean;
-  timing?: { maxSamples?: number; outlierThreshold?: number };
-  geometry?: { maxSamples?: number; outlierThreshold?: number };
-  memory?: { maxSamples?: number; outlierThreshold?: number };
+  aggressive?: boolean; // More smoothing when true
+  custom?: {
+    [key: string]: number; // Custom alpha values
+  };
 }
+
 
 export interface StatsOptions {
   updateInterval?: number;
