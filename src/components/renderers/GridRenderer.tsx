@@ -37,10 +37,10 @@ export function GridRenderer({ stats, options, configs }: GridRendererProps) {
               )}
             </div>
             <div style={{ ...styles.statValue, color }}>
-              {config.format(value)}
+              {config.format(value, { gpuPercentage: options.gpuPercentage })}
               {showMinMax && buffer && (
                 <span style={styles.minMaxValue}>
-                  {config.format(buffer.getMin())}-{config.format(buffer.getMax())}
+                  {config.format(buffer.getMin(), { gpuPercentage: options.gpuPercentage })}-{config.format(buffer.getMax(), { gpuPercentage: options.gpuPercentage })}
                 </span>
               )}
             </div>

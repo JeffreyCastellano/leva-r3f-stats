@@ -90,7 +90,7 @@ export interface StatConfig {
   shortLabel: string;
   labelSuffix?: string;
   unit?: string;
-  format: (value: number) => string;
+  format: (value: number, options?: any) => string;
   color?: (value: number, thresholds: Thresholds) => string;
   show: boolean;
   order: number;

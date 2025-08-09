@@ -18,7 +18,7 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
 
   const thresholds = useMemo(() => {
     return calculateThresholds(
-      targetFPS, 
+      targetFPS,
       options.trianglesBudget,
       options.drawCallsBudget
     );
@@ -33,12 +33,14 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
       return null;
     }
 
-    return options.compact ? {
-      ...options,
-      fontSize: options.fontSize || 9,
-      graphHeight: options.graphHeight || 40,
-      columns: options.columns || 3
-    } : options;
+    return options.compact
+      ? {
+          ...options,
+          fontSize: options.fontSize || 9,
+          graphHeight: options.graphHeight || 40,
+          columns: options.columns || 3,
+        }
+      : options;
   }, [
     options.graphHeight,
     options.compact,
@@ -49,42 +51,42 @@ export function ModularDisplay({ stats, options }: ModularDisplayProps) {
     options.showColors,
     options.defaultColor,
     options.trianglesBudget,
-    options.drawCallsBudget
+    options.drawCallsBudget,
   ]);
 
+  const graphConfigs = useMemo(() => {
+    return getVisibleConfigs(allConfigs, stats, false);
+  }, [allConfigs, stats]);
+
+  const visibleConfigs = useMemo(() => {
+    return getVisibleConfigs(allConfigs, stats, options.compact);
+  }, [allConfigs, stats, options.compact]);
+
   if (graphOptions) {
-    const graphConfigs = useMemo(() => {
-      return getVisibleConfigs(allConfigs, stats, false);
-    }, [allConfigs, stats]);
-    
     return (
-      <GraphRenderer 
-        stats={stats} 
-        options={graphOptions} 
+      <GraphRenderer
+        stats={stats}
+        options={graphOptions}
         configs={graphConfigs}
         thresholds={thresholds}
       />
     );
   }
 
-  const visibleConfigs = useMemo(() => {
-    return getVisibleConfigs(allConfigs, stats, options.compact);
-  }, [allConfigs, stats, options.compact]);
-  
   if (options.compact) {
     return (
-      <CompactRenderer 
-        stats={stats} 
-        options={options} 
+      <CompactRenderer
+        stats={stats}
+        options={options}
         configs={visibleConfigs}
       />
     );
   }
 
   return (
-    <GridRenderer 
-      stats={stats} 
-      options={options} 
+    <GridRenderer
+      stats={stats}
+      options={options}
       configs={visibleConfigs}
     />
   );

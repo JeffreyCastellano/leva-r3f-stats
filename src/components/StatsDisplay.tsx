@@ -11,6 +11,8 @@ export function StatsDisplay() {
   const latestStatsRef = useRef<StatsData>(stats);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
+  const reconnectCountRef = useRef<number>(0);
+  const lastReconnectLogRef = useRef<number>(0);
 
   const defaultOptions: StatsOptions = useMemo(() => ({
     updateInterval: 50,
@@ -75,11 +77,23 @@ export function StatsDisplay() {
     const checkConnection = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
       if (timeSinceLastUpdate > 1000) { // No update for 1 second
-        console.log('Stats appear stale, attempting reconnection...');
+        reconnectCountRef.current++;
+        
+        // Only log the first reconnection attempt or every 10th attempt to prevent spam
+        const now = Date.now();
+        if (reconnectCountRef.current === 1 || 
+            (reconnectCountRef.current % 10 === 0 && now - lastReconnectLogRef.current > 5000)) {
+          console.log(`Stats appear stale, attempting reconnection... (attempt ${reconnectCountRef.current})`);
+          lastReconnectLogRef.current = now;
+        }
+        
         if (unsubscribe) {
           unsubscribe();
         }
         connect();
+      } else {
+        // Reset counter when connection is healthy
+        reconnectCountRef.current = 0;
       }
     }, 1000);
     

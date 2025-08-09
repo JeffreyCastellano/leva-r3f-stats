@@ -198,7 +198,8 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
     lastFrameTime.current = currentTime;
     frameCount.current++;
     
-    if (options.vsync !== false && frameCount.current % 30 === 0) {
+    // Detect vsync a bit more responsively while avoiding per-frame noise
+    if (options.vsync !== false && frameCount.current % 20 === 0) {
       const vsync = vsyncDetector.current.update(stats.fps);
       if (vsync !== null) {
         stats.vsync = vsync;
@@ -353,8 +354,9 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         
         if (ext && !queryInProgress) {
           try {
+            // Only begin a new query if the GPU is not in a disjoint state and no previous query is active
             const disjoint = gl2.getParameter(ext.GPU_DISJOINT_EXT);
-            if (!disjoint) {
+            if (!disjoint && !queryInProgress) {
               gpuQuery = gl2.createQuery();
               if (gpuQuery) {
                 gl2.beginQuery(ext.TIME_ELAPSED_EXT, gpuQuery);
@@ -496,7 +498,7 @@ export function useUnifiedTiming(refs: TimingRefs, options: UnifiedTimingOptions
         gpuAccurate: stats.gpuAccurate
       };
 
-      const gpuPercent = smoothedStats.ms > 0 ? (smoothedStats.gpu / smoothedStats.ms) * 100 : 0;
+      const gpuPercent = smoothedStats.ms > 0 ? Math.min(100, (smoothedStats.gpu / smoothedStats.ms) * 100) : 0;
 
       
       const cpuTime = smoothedStats.gpuAccurate && smoothedStats.gpu > 0 ? 

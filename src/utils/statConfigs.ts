@@ -1,5 +1,6 @@
 import { StatConfig, StatsOptions, Thresholds } from '../types';
 import { unifiedStore } from '../store/unifiedStore';
+import { getTargetFrameRate } from './thresholds';
 
 const getLabels = (options: StatsOptions) => ({
   fps: 'FPS',
@@ -14,25 +15,25 @@ const getLabels = (options: StatsOptions) => ({
 });
 
 const FORMATS = {
-  fps: (v: number) => v.toFixed(0),
-  ms: (v: number) => v.toFixed(1),
-  memory: (v: number) => v.toFixed(0),
+  fps: (v: number, _options?: any) => v.toFixed(0),
+  ms: (v: number, _options?: any) => v.toFixed(1),
+  memory: (v: number, _options?: any) => v.toFixed(0),
   gpu: (v: number, options?: { gpuPercentage?: boolean }) => {
     if (options?.gpuPercentage) {
       return v.toFixed(0) + '%';
     }
     return v.toFixed(1);
   },
-  cpu: (v: number) => v.toFixed(1),
-  compute: (v: number) => v.toFixed(1),
-  triangles: (v: number) => {
+  cpu: (v: number, _options?: any) => v.toFixed(1),
+  compute: (v: number, _options?: any) => v.toFixed(1),
+  triangles: (v: number, _options?: any) => {
     if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
     if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
     if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
     return v.toString();
   },
-  drawCalls: (v: number) => v.toFixed(0),
-  vsync: (v: number | null) => v ? `${v}Hz` : 'Detecting...'
+  drawCalls: (v: number, _options?: any) => v.toFixed(0),
+  vsync: (v: number | null, _options?: any) => v ? `${v}Hz` : 'Detecting...'
 };
 
 const getColor = (value: number, good: number, bad: number, invert = false): string => {
@@ -45,22 +46,31 @@ const getColor = (value: number, good: number, bad: number, invert = false): str
   return '#ffd93d';
 };
 
-export const DEFAULT_THRESHOLDS: Thresholds = {
-  fpsWarning: 48,
-  fpsCritical: 30,
-  msWarning: 20,
-  msCritical: 33,
-  gpuWarning: 20,
-  gpuCritical: 33,
-  targetFPS: 60,
-  targetMS: 16.67,
-  trianglesBudget: 1000000,
-  drawCallsBudget: 1000,
-  trianglesWarning: 800000,
-  trianglesCritical: 1200000,
-  drawCallsWarning: 800,
-  drawCallsCritical: 1200
-};
+// Create dynamic default thresholds based on detected refresh rate
+export function getDefaultThresholds(): Thresholds {
+  const targetFPS = getTargetFrameRate();
+  const targetMS = 1000 / targetFPS;
+  
+  return {
+    fpsWarning: targetFPS * 0.8,      // 80% of target
+    fpsCritical: targetFPS * 0.5,     // 50% of target
+    msWarning: targetMS * 1.25,       // 125% of target frame time
+    msCritical: targetMS * 2,         // 200% of target frame time
+    gpuWarning: targetMS * 1.25,      // 125% of target frame time
+    gpuCritical: targetMS * 2,         // 200% of target frame time
+    targetFPS,
+    targetMS,
+    trianglesBudget: 1000000,
+    drawCallsBudget: 1000,
+    trianglesWarning: 800000,
+    trianglesCritical: 1200000,
+    drawCallsWarning: 800,
+    drawCallsCritical: 1200
+  };
+}
+
+// Export a getter for backward compatibility
+export const DEFAULT_THRESHOLDS: Thresholds = getDefaultThresholds();
 
 export function createStatConfigs(options: StatsOptions, thresholds: Thresholds = DEFAULT_THRESHOLDS): StatConfig[] {
   const stats = options.stats || {};
@@ -92,20 +102,20 @@ export function createStatConfigs(options: StatsOptions, thresholds: Thresholds 
           labelSuffix = `MAX: ${thresholds.targetMS.toFixed(1)}ms`;
           break;
         case 'gpu':
-        if (options.gpuPercentage) {
-          color = (v: number) => {
-            // Color based on percentage thresholds
-            if (v > 90) return '#ff6b6b';  // Critical: >90%
-            if (v > 70) return '#ffd93d';  // Warning: >70%
-            return '#51cf66';  // Good: <70%
-          };
-          graphMax = 100;  // Percentage max
-          labelSuffix = '';
-        } else {
-          color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
-          graphMax = thresholds.targetMS * 2;
-        }
-        break;
+          if (options.gpuPercentage) {
+            color = (v: number) => {
+              if (v > 90) return '#ff6b6b';
+              if (v > 70) return '#ffd93d';
+              return '#51cf66';
+            };
+            graphMax = 100;
+            labelSuffix = '';
+          } else {
+            // Use GPU-specific thresholds instead of MS thresholds
+            color = (v: number) => getColor(v, thresholds.gpuWarning, thresholds.gpuCritical);
+            graphMax = thresholds.targetMS * 2;
+          }
+          break;
         case 'cpu':
           color = (v: number) => getColor(v, thresholds.msWarning, thresholds.msCritical);
           graphMax = thresholds.targetMS * 2;

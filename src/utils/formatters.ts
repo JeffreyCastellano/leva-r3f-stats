@@ -50,3 +50,8 @@ export function formatTriangles(count: number): string {
 export function formatVSync(vsync: number | null): string {
   return vsync === null ? 'N/A' : `${vsync}Hz`;
 }
+
+export const formatPercent = (value: number): string => {
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
+  return `${Math.round(value)}%`;
+};

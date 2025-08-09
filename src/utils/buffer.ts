@@ -14,33 +14,56 @@ export class RingBuffer {
   }
 
   push(value: number): void {
+    const oldValue = this.filled ? this.buffer[this.pointer] : 0;
+    const needsRecalc = this.filled && (oldValue === this.min || oldValue === this.max);
+
+    // Update buffer and basic stats
+    this.buffer[this.pointer] = value;
+    
     if (this.filled) {
-      const oldValue = this.buffer[this.pointer];
-      this.sum -= oldValue;
-      if (oldValue === this.min || oldValue === this.max) {
-        this.recalculateStats();
-      }
+      this.sum = this.sum - oldValue + value;
+    } else {
+      this.sum += value;
     }
 
-    this.buffer[this.pointer] = value;
-    this.sum += value;
-    this.min = Math.min(this.min, value);
-    this.max = Math.max(this.max, value);
-    
+    // Update pointer and count
     this.pointer = (this.pointer + 1) % this.size;
     if (this.pointer === 0) this.filled = true;
     this.count = this.filled ? this.size : this.pointer;
-  }
 
-  private recalculateStats(): void {
-    this.min = Infinity;
-    this.max = -Infinity;
-    this.sum = 0;
-    this.forEachValue((value) => {
+    // Efficiently update min/max
+    if (needsRecalc) {
+      // Only recalculate min/max when necessary
+      this.recalculateMinMax();
+    } else {
+      // Fast path: just check against current value
       this.min = Math.min(this.min, value);
       this.max = Math.max(this.max, value);
-      this.sum += value;
-    });
+    }
+  }
+
+  private recalculateMinMax(): void {
+    this.min = Infinity;
+    this.max = -Infinity;
+    
+    const count = this.count;
+    if (count === 0) return;
+    
+    if (!this.filled) {
+      // Unfilled buffer - iterate only over valid values
+      for (let i = 0; i < this.pointer; i++) {
+        const val = this.buffer[i];
+        this.min = Math.min(this.min, val);
+        this.max = Math.max(this.max, val);
+      }
+    } else {
+      // Filled buffer - iterate over all values
+      for (let i = 0; i < this.size; i++) {
+        const val = this.buffer[i];
+        this.min = Math.min(this.min, val);
+        this.max = Math.max(this.max, val);
+      }
+    }
   }
 
   resize(newSize: number): void {
@@ -54,6 +77,7 @@ export class RingBuffer {
     this.min = Infinity;
     this.max = -Infinity;
     this.sum = 0;
+    this.count = 0;
     
     const copyCount = Math.min(oldData.length, newSize);
     const startIdx = Math.max(0, oldData.length - copyCount);

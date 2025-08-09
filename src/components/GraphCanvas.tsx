@@ -34,6 +34,7 @@ export function GraphCanvas({
 }: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
+  const dimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   
   const labelFontSize = Math.max(8, fontSize - 1);
   const formattedValue = `${currentValue.toFixed(1)}${unit}`;
@@ -128,6 +129,25 @@ export function GraphCanvas({
     }
   }), [height, backgroundColor, gridColor, labelFontSize, fontSize, color, dashedGridPattern]);
 
+  // Setup ResizeObserver to track canvas dimensions
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        dimensionsRef.current = { width, height };
+      }
+    });
+
+    resizeObserver.observe(canvas);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -140,15 +160,13 @@ export function GraphCanvas({
     const render = () => {
       if (!mounted || !canvas) return;
 
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
+      const { width, height } = dimensionsRef.current;
+      if (width === 0 || height === 0) {
         animationFrameRef.current = requestAnimationFrame(render);
         return;
       }
 
       const dpr = window.devicePixelRatio || 1;
-      const width = rect.width;
-      const height = rect.height;
       
       if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
         canvas.width = width * dpr;

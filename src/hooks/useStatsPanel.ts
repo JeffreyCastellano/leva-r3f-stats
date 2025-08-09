@@ -12,7 +12,19 @@ import {
 } from './utils/timing-state';
 import { useUnifiedTiming } from './timing/useUnifiedTiming';
 
-let globalCollectorInstances = 0;
+// Use a more robust instance tracking approach
+const instanceTracker = {
+  count: 0,
+  increment() {
+    return ++this.count;
+  },
+  decrement() {
+    return Math.max(0, --this.count);
+  },
+  get() {
+    return this.count;
+  }
+};
 
 export function useStatsPanel(options: StatsOptions = {}) {
   const instanceBuffers = useRef<ReturnType<typeof createInstanceBuffers> | null>(null);
@@ -84,18 +96,18 @@ function useLevaControls(options: StatsOptions) {
 
 function useInstanceTracking() {
   useEffect(() => {
-    globalCollectorInstances++;
+    const currentCount = instanceTracker.increment();
     const storeInstances = unifiedStore.getInstanceCount();
     
-    if (globalCollectorInstances > 1) {
+    if (currentCount > 1) {
       console.warn(
-        `Multiple Stats instances detected: ${globalCollectorInstances} components, ${storeInstances} store instances. ` +
+        `Multiple Stats instances detected: ${currentCount} components, ${storeInstances} store instances. ` +
         'Only one instance should be active. Data may be shared between instances.'
       );
     }
     
     return () => {
-      globalCollectorInstances--;
+      instanceTracker.decrement();
     };
   }, []);
 }

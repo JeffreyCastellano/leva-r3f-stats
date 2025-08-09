@@ -11,7 +11,7 @@ interface GraphRendererProps {
   thresholds: any;
 }
 
-export function GraphRenderer({ stats, options, configs }: GraphRendererProps) {
+export function GraphRenderer({ stats, options, configs, thresholds }: GraphRendererProps) {
   const columns = options.columns ?? 2;
   const validColumns = Math.max(1, Math.min(columns, 8));
   const showFullLabels = options.showFullLabels ?? false;
@@ -27,14 +27,26 @@ export function GraphRenderer({ stats, options, configs }: GraphRendererProps) {
   return (
     <div style={styles.graphGridContainer(validColumns)}>
       {graphConfigs.map(config => {
-        const buffer = unifiedStore.buffers[config.key as keyof typeof unifiedStore.buffers];
+        // Select correct buffer, remapping GPU to percentage buffer when needed
+        const bufferKey = (config.key === 'gpu' && options.gpuPercentage)
+          ? 'gpuPercent'
+          : (config.key as keyof typeof unifiedStore.buffers);
+        const buffer = unifiedStore.buffers[bufferKey];
         if (!buffer) return null;
-        const value = config.key === 'gpu' && options.gpuPercentage 
-        ? (stats.gpuPercent || 0)
-        : (stats[config.key] as number);
+        const value = config.key === 'gpu' && options.gpuPercentage
+          ? (stats.gpuPercent || 0)
+          : (stats[config.key] as number);
         const color = options.showColors !== false && config.color 
           ? config.color(value, null as any) 
           : options.defaultColor || '#999';
+
+        // Derive unit for graph display
+        const unit =
+          config.key === 'memory' ? 'MB' :
+          config.key === 'vsync' ? 'Hz' :
+          (config.key === 'gpu' && options.gpuPercentage) ? '%' :
+          (config.key === 'ms' || config.key === 'gpu' || config.key === 'cpu') ? 'ms' :
+          '';
 
         return (
           <div key={config.key} style={styles.graphItemContainer}>
@@ -42,13 +54,13 @@ export function GraphRenderer({ stats, options, configs }: GraphRendererProps) {
               data={buffer}
               color={color}
               min={config.graphMin || 0}
-              max={config.graphMax ? config.graphMax(null as any) : 100}
+              max={config.graphMax ? config.graphMax(thresholds) : 100}
               height={options.graphHeight || 48}
               label={config.shortLabel || config.label}
               fullLabel={showFullLabels && config.labelSuffix 
                 ? `${config.label} ${config.labelSuffix}` 
                 : config.label}
-              unit={config.unit || ''}
+              unit={unit}
               currentValue={value}
               backgroundColor={options.graphBackgroundColor}
               gridColor={options.graphGridColor}

@@ -59,7 +59,7 @@ class UnifiedStore {
     
     if (!this.updateScheduled) {
       this.updateScheduled = true;
-      queueMicrotask(() => this.flushUpdates());
+      Promise.resolve().then(() => this.flushUpdates());
     }
   }
 
@@ -172,7 +172,7 @@ export const registerInstance = () => unifiedStore.registerInstance();
 export const getInstanceCount = () => unifiedStore.getInstanceCount();
 
 export function createInstanceBuffers(size: number) {
-  if(!size){}
+  unifiedStore.resizeBuffers(size);
   return {
     ...unifiedStore.buffers,
     destroy: () => {}

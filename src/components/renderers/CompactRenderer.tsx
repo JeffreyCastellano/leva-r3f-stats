@@ -26,7 +26,7 @@ export function CompactRenderer({ stats, options, configs }: CompactRendererProp
           ? config.color(value, null as any) 
           : options.defaultColor || '#999999';
 
-        const formattedValue = config.format(value);
+        const formattedValue = config.format(value, { gpuPercentage: options.gpuPercentage });
 
         if (config.key === 'vsync' && value) {
           return (
